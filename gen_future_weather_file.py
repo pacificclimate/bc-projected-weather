@@ -201,7 +201,7 @@ def get_climate_data(climate_file: str, lat: float, long: float, cdfvariable: st
 			lat(float): The latitude to read data from.
 			long(float): The longitude to read data from.
 			cdfvariable(str): The variable to read from the netcdf file.
-			time_range(Range): The range of years to read data from, to.
+			time_range(range): The range of years to read data from, to.
 
 		Returns:
 			a list with 366 lists. One for each day of the year in a leap year.
@@ -252,23 +252,23 @@ def avg(lst: list):
 
 def gen_future_weather_file(lat: float,
 			    long: float,
-			    present_range: Range,
-			    future_range: Range,
+			    present_range: range,
+			    future_range: range,
 			    present_climate: str,
 			    future_climate: str,
 			    netcdf_variable: str,
 			    epw_file: str
 			):
-	""" gen_future_weather_file(float, float, Range, Range, str, str, str)
+	""" gen_future_weather_file(float, float, range, range, str, str, str)
 
 		Regenerates the passed epw file into a weather file represeting future data.
 
 		Args:
 			lat(float): The latitude to read data from climate files.
 			long(float): The logitude to read data from teh climate files.
-			present_range(Range): The range of years that makes up "present" for
+			present_range(range): The range of years that makes up "present" for
 					      this particular run.
-			future_range(Range): The range of years that makes up "future" for
+			future_range(range): The range of years that makes up "future" for
 					     this particular run.
 			present_climate(str): The path to the climate file with "present" data.
 			future_climate(str): The path to the climate file with "future" data.
