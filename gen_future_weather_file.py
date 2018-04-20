@@ -73,8 +73,8 @@ def morph_data(data: list, date: datetime, present_data: list, future_data: list
 			a list of future data created based off the present data.
 	"""
 
-	#: Not yet implemented, so just return the original data to test
-	#: that a file will be put together properly.
+	
+
 	return data
 
 def get_epw_data(epw_file: str):
@@ -190,7 +190,7 @@ def write_epw_data(data: list, headers: list, filename: str):
 		epw.write(epw_file)
 
 
-def get_climate_data(climate_file: str, lat: float, long: float, time_range: list):
+def get_climate_data(climate_file: str, lat: float, long: float, cdfvariable: str, time_range: list):
 	""" get_climate_data(str, float, float, list)
 
 		Gets a list of data for each day of each year within time_range from
@@ -200,6 +200,7 @@ def get_climate_data(climate_file: str, lat: float, long: float, time_range: lis
 			climate_file(str): The path to the climate file to read from.
 			lat(float): The latitude to read data from.
 			long(float): The longitude to read data from.
+			cdfvariable(str): The variable to read from the netcdf file.
 			time_range(Range): The range of years to read data from, to.
 
 		Returns:
@@ -224,12 +225,9 @@ def get_climate_data(climate_file: str, lat: float, long: float, time_range: lis
 	lat_index = lat_data.tolist().index(lat_data[np.abs(lat_data - lat).argmin()])
 	long_index = long_data.tolist().index(long_data[np.abs(long_data - long).argmin()])
 
-	#: Get the key where the data is located
-	data_key = [k for k in raw_data.variables.keys() if k != "lon" and k != "lat" and k != "time"][0]
-
 	#: Grab the actual relevant data from the file.
 	data = [[] for _ in range(366)]
-	for index, datapoint in enumerate(raw_data.variables[data_key]):
+	for index, datapoint in enumerate(raw_data.variables[cdfvariable]):
 		time = data_dates[index]
 
 		if time.year in time_range:
@@ -258,6 +256,7 @@ def gen_future_weather_file(lat: float,
 			    future_range: Range,
 			    present_climate: str,
 			    future_climate: str,
+			    netcdf_variable: str,
 			    epw_file: str
 			):
 	""" gen_future_weather_file(float, float, Range, Range, str, str, str)
@@ -277,11 +276,13 @@ def gen_future_weather_file(lat: float,
 	"""
 
 	#: Get the present and future climate data.
-	present_data = get_climate_data(present_climate, lat, long, present_range)
-	future_data = get_climate_data(future_climate, lat, long, future_range)
+	present_data = get_climate_data(present_climate, lat, long, netcdf_variable, present_range)
+	future_data = get_climate_data(future_climate, lat, long, netcdf, variable, future_range)
 
 	#: Get the data from epw file and the headers from the epw.
 	epw_data, headers = get_epw_data(epw_file)
+
+	daily_averages = get_daily_averages(epw_data)
 
 	#: Morph the data in the file so that it reflects what it should be in the future.
 	#: IE) run the processes required in by the paper.
@@ -310,6 +311,7 @@ if __name__ == "__main__":
 	present_climate = "climate_files/tasmin_gcm_prism_BCCAQ_CNRM-CM5_rcp85_r1i1p1_1951-2000.nc"
 	future_climate = "climate_files/tasmin_gcm_prism_BCCAQ_CNRM-CM5_rcp85_r1i1p1_2001-2100.nc"
 	epw = "weather_files/CAN_BC_KELOWNA_1123939_CWEC.epw"
+	netcdf_variable = "tasmin"
 
 	gen_future_weather_file(
 	     lat,
@@ -318,6 +320,7 @@ if __name__ == "__main__":
 	     range(future_start, future_end + 1),
 	     present_climate,
 	     future_climate,
+	     netcdf_variable,
 	     epw
 	)
 
