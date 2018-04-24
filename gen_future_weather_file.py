@@ -1,326 +1,425 @@
 """ gen_future_weather_file.py
 
-	This file takes in climate files from the present (defined as 1951 to 2000) and
-	the future (2001 - 2100), as well as an existing epw weather file, and creates a
-	new epw file that has projected weather data for a future period.
+    This file takes in climate files from the present (defined as 1951 to 2000)
+    and the future (2001 - 2100), as well as an existing epw weather file, and
+    creates a new epw file that has projected weather data for a future period.
 
-	The equations and processes outlined in this file are as descibed in the paper
-	"Future weather files to support climate resilient building design in Vancouver"
-	by Trevor Murdock, published in the 1st international conference on new horizons
-	in green civil engineering (NHICE-01), Victoria, BC, Canada, April 25th-27th, 2018.
+    The equations and processes outlined in this file are as descibed in the
+    paper "Future weather files to support climate resilient building design
+    in Vancouver" by Trevor Murdock, published in the 1st international
+    conference on new horizons in green civil engineering (NHICE-01),
+    Victoria, BC, Canada, April 25th-27th, 2018.
 
-	Please note that in any documentation, a subscript is represented with an underscore.
-	This means that something like dbt_0 actually represents dbt with a subscript 0 following.
-	This comvention is NOT the same with variable names, for variable name, an underscore
-	simple represents a space (eg hourly_dbt represents hourly dry buld temprature.)
+    Please note that in any documentation, a subscript is represented with an
+    underscore. This means that something like dbt_0 actually represents dbt
+    with a subscript 0 following. This comvention is NOT the same with
+    variable names, for variable name, an underscore simple represents a space
+    (eg hourly_dbt represents hourly dry buld temprature.)
 """
 
 import numpy as np
-from datetime import datetime, timedelta
-import argparse
+from datetime import datetime
 import csv
 from netCDF4 import Dataset
 import netCDF4 as cdf
 
 
-def calc_dbt(hourly_dbt: float, delta_dbt: float, alpha_dbt: float, daily_dbt_mean: float):
-	""" calc_dbt(float, float, float, float)
+def calc_dbt(hourly_dbt: float,
+             delta_dbt: float,
+             alpha_dbt: float,
+             daily_dbt_mean: float
+             ):
+    """ calc_dbt(float, float, float, float)
 
-		calculates the future dry bulb temprature value and returns it.
+        calculates the future dry bulb temprature value and returns it.
 
-		Args:
-			hourly_dbt(float): The hourly value for drybulb temp, this is
-					 the actual value that is being shifted. It
-					 is named dbt_0 in the paper referenced above.
-			delta_dbt(float): This represents the difference in average dry buld
-					  temprature from this day in the future to this day
-					  in the present. It is named delta dbt_d in the paper.
-			alpha_dbt(float): This is the dividend of the average dry bulb
-					  temprature from this day in the future divided by
-					  the average dry bulb temprature on this day in the
-					  present. It is named alpha dbt_d in the paper.
-			daily_mean_dbt(float): This is the mean dry buld temprature for the day
-					       that the hourly value was measured in. In the paper
-					       this is named <dbt_0>_d
+        Args:
+            hourly_dbt(float): The hourly value for drybulb temp, this is
+                      the actual value that is being shifted. It
+                      is named dbt_0 in the paper referenced above.
 
-		Returns:
-			dbt_0 + delta dbt_d + alpha dbt_d * (dbt_0 - <dbt_0>_d)
-			ie, it returns the future dry bulb temprature value for this
-			hour. This process is outlined in page 3 of the paper referenced.
-	"""
+            delta_dbt(float): This represents the difference in average dry
+                      bulb temprature from this day in the future to this day
+                      in the present. It is named delta dbt_d in the paper.
 
-	return hourly_dbt + delta_dbt + alphd_dbt * (hourly_dbt - daily_dbt_mean)
+            alpha_dbt(float): This is the dividend of the average dry bulb
+                      temprature from this day in the future divided by
+                      the average dry bulb temprature on this day in the
+                      present. It is named alpha dbt_d in the paper.
 
-def morph_data(data: list, date: datetime, present_data: list, future_data: list, daily_averages: list):
-	""" morph_data(list, datetime, list, list, list)
+            daily_mean_dbt(float): This is the mean dry buld temprature for
+                       the day that the hourly value was measured in. In the
+                       paper this is named <dbt_0>_d
 
-		This method takes in a single line of data from the epw file,
-		and returns that line with the relevant datafields having been
-		replaced with future versions of that data (as calculated.)
+        Returns:
+            dbt_0 + delta dbt_d + alpha dbt_d * (dbt_0 - <dbt_0>_d)
+            ie, it returns the future dry bulb temprature value for this
+            hour. This process is outlined in page 3 of the paper referenced.
+    """
 
-		Args:
-			data(list): A list of data representing the csv line found
-				    in the epw file. IE one line of data, that has been
-				    turned into a list (rather than a string read directly
-				    from the file.)
-			date(datetime): A datetime object representing the exact hour that
-					this specific data row is from.
-			present_data(list): A list of the data found in the present climate file.
-			future_data(list): A list of the data found in the future climate file.
-			daily_averages(list): A list of the <x_0>_d values calculatd.
+    return hourly_dbt + delta_dbt + alpha_dbt * (hourly_dbt - daily_dbt_mean)
 
-		Returns:
-			a list of future data created based off the present data.
-	"""
 
-	
+def morph_data(data: list,
+               date: datetime,
+               present_data: list,
+               future_data: list,
+               daily_averages: list
+               ):
+    """ morph_data(list, datetime, list, list, list)
 
-	return data
+        This method takes in a single line of data from the epw file,
+        and returns that line with the relevant datafields having been
+        replaced with future versions of that data (as calculated.)
+
+        Args:
+            data(list): A list of data representing the csv line found
+                    in the epw file. IE one line of data, that has been
+                    turned into a list (rather than a string read directly
+                    from the file.)
+
+            date(datetime): A datetime object representing the exact hour that
+                    this specific data row is from.
+
+            present_data(list): A list of the data found in the present climate
+                    file.
+
+            future_data(list): A list of the data found in the future climate
+                    file.
+
+            daily_averages(list): A list of the <x_0>_d values calculatd.
+
+        Returns:
+            a list of future data created based off the present data.
+    """
+
+    return data
+
 
 def get_epw_data(epw_file: str):
-	""" get_epw_data(str)
+    """ get_epw_data(str)
 
-		Gets the data out of an epw file, and returns it.
+        Gets the data out of an epw file, and returns it.
 
-		Args:
-			epw_file(str): A string to the path of the epw file to read.
+        Args:
+            epw_file(str): A string to the path of the epw file to read.
 
-		Returns:
-			(list, list): The first list returned is a list of lists where each
-				      inner list is a row of data from the epw file.
-				      The second list is another list of lists where each
-				      inner list is a row of header data from the epw file.
-			This method will return the data and then the headers in the file.
-	"""
+        Returns:
+            (list, list): The first list returned is a list of lists where each
+                      inner list is a row of data from the epw file.
+                      The second list is another list of lists where each
+                      inner list is a row of header data from the epw file.
+            This method will return the data and then the headers in the file.
+    """
 
-	#: Read the epw file as a csv, and convert that csv into a list of strings.
-	#: The headers dont need to be changed from here, however the data should be converted
-	#: into its specific types.
-	with open(epw_file, "r") as epw:
-		reader = csv.reader(epw)  #: Read the epw file as a csv
-		csv_data = list(reader)  #: Convert the csv reader into a list.
-		data = csv_data[8:]  #: Grab the data from the file (rows 8 and on.)
-		headers = csv_data[:8]  #: Grab the headers from the file (rows 0 to 7.)
+    # Read the epw file as a csv, and convert that csv into a list of strings.
+    # The headers dont need to be changed from here, however the data should
+    # be converted into its specific types.
+    with open(epw_file, "r") as epw:
+        reader = csv.reader(epw)  # Read the epw file as a csv
+        csv_data = list(reader)  # Convert the csv reader into a list.
+        data = csv_data[8:]  # Grab the data from the file (rows 8 and on.)
+        headers = csv_data[:8]  # Grab the headers from the file (rows 0 to 7.)
 
-	#: Convert each cell in each row of data to its specific type. This way they can
-	#: be changed as required by later functions.
-	for index, row in enumerate(data):
+    # Convert each cell in each row of data to its specific type. This way they
+    # can be changed as required by later functions.
+    for index, row in enumerate(data):
 
-		#: Get the date of this row so that we can turn it into a datetime object for
-		#: easier use later.
-		row_dates = [int(cell) for cell in row[:5]]
-		row_time = datetime(row_dates[0], row_dates[1], row_dates[2], row_dates[3] - 1, row_dates[4])
+        # Get the date of this row so that we can turn it into a datetime
+        # object for easier use later.
+        row_dates = [int(cell) for cell in row[:5]]
+        row_time = datetime(row_dates[0], row_dates[1],
+                            row_dates[2], row_dates[3] - 1,
+                            row_dates[4])
 
-		#: Cells 6 to -9 (9 back from the end) can easilly be just sorted into ints
-		#: or floats (float if there's a . in the string, int otherwise.) However, at
-		#: position -9 we have a series of numbers representing weather codes. This must be
-		#: left as a string.
-		row_vals = [float(cell) if "." in cell else int(cell) for cell in row[6:-9]]
+        # Cells 6 to -9 (9 back from the end) can easilly be just sorted into
+        # ints or floats (float if there's a . in the string, int otherwise.)
+        # However, at position -9 we have a series of numbers representing
+        # weather codes. This must be left as a string.
+        row_vals = [float(c) if "." in c else int(c) for c in row[6:-9]]
 
-		row_vals.append(row[-8])  #: Leave -8 as a string an append it to row_vals.
+        row_vals.append(row[-8])  # Leave unchanged -8 as a string.
 
-		#: The rest of the values in the file can be safely converted to ints or floats
-		#: without loosing any key information.
-		for cell in row[-7:]:
-			if "." in cell:
-				row_vals.append(float(cell))
-			else:
-				row_vals.append(int(cell))
+        # The rest of the values in the file can be safely converted to ints or
+        # floats without loosing any key information.
+        for cell in row[-7:]:
+            if "." in cell:
+                row_vals.append(float(cell))
+            else:
+                row_vals.append(int(cell))
 
-		#: Actually change the row we just worked on to have the values we created above.
-		data[index] = [row_time, row[5]]
-		for cell in row_vals:
-			data[index].append(cell)
+        # Actually change the row we just worked on to have the values we
+        # created above.
+        data[index] = [row_time, row[5]]
+        for cell in row_vals:
+            data[index].append(cell)
 
-	#: Return the data and the headers.
-	return data, headers
+    # Return the data and the headers.
+    return data, headers
+
 
 def write_epw_data(data: list, headers: list, filename: str):
-	""" write_epw_data(list, list, str)
+    """ write_epw_data(list, list, str)
 
-		Combines the passed headers and data into an epw file with
-		the name filename.
+        Combines the passed headers and data into an epw file with
+        the name filename.
 
-		Args:
-			data(list): A list of lists, each inner list is a row of
-				    data to be written to the epw file.
-			header(list): A list of lists, each inner list is a row of
-				      the header to be written to the epw file.
-			filename(str): The name of the file to be written.
-	"""
+        Args:
+            data(list): A list of lists, each inner list is a row of
+                    data to be written to the epw file.
+            header(list): A list of lists, each inner list is a row of
+                      the header to be written to the epw file.
+            filename(str): The name of the file to be written.
+    """
 
-	#: Reassemble the headers into one string. Each inner list of headers
-	#: gets its own line, and each item in each inner list is comma seperated.
-	for index, header in enumerate(headers):
-		headers[index] = ",".join(header)
-	headers = "\n".join(headers)
+    # Reassemble the headers into one string. Each inner list of headers
+    # gets its own line, and each item in each inner list is comma seperated.
+    for index, header in enumerate(headers):
+        headers[index] = ",".join(header)
+    headers = "\n".join(headers)
 
-	#: Rebuild the list of data into a string so that we can write it to a file.
-	epw_file = headers + "\n"
-	for data_row in data:
+    # Rebuild the list of data into a string so that we can write it to a file.
+    epw_file = headers + "\n"
+    for data_row in data:
 
-		#: epw files mandate that if the -3rd position is 999.000 that it is missing.
-		#: This is an issue because 999.000 is not a valid float, as the trailing 0's
-		#: are omitted. However, we can assume that if the value is 999.0, that it is
-		#: missing, and therefore we should add a string of 999.000 rather than 999.0.
-		if data_row[-3] == 999.0:
-			data_row[-3] = "999.000"
-		#: The same logic as above applies, except with 0.0 and 0.0000.
-		if data_row[-6] == 0:
-			data_row[-6] = "0.0000"
+        # epw files mandate that if the -3rd position is 999.000 that it is
+        # missing. This is an issue because 999.000 is not a valid float, as
+        # the trailing 0's are omitted. However, we can assume that if the
+        # value is 999.0, that it is missing, and therefore we should add a
+        # string of 999.000 rather than 999.0.
+        if data_row[-3] == 999.0:
+            data_row[-3] = "999.000"
+        # The same logic as above applies, except with 0.0 and 0.0000.
+        if data_row[-6] == 0:
+            data_row[-6] = "0.0000"
 
-		#: Get the date that this row is on, and assemble that into the first 5 entries
-		#: of the row.
-		row_date = data_row[0]
-		csv_row = [str(row_date.year), str(row_date.month), str(row_date.day), str(row_date.hour), str(row_date.minute)]
+        # Get the date that this row is on, and assemble that into the first
+        # 5 entries of the row.
+        row_date = data_row[0]
+        csv_row = [str(row_date.year), str(row_date.month),
+                   str(row_date.day), str(row_date.hour),
+                   str(row_date.minute)]
 
-		#: Afterwards, append strings of each cell to the csv_row list so that we have a
-		#: list of the exact strings that we want written into this line of the epw file.
-		for cell in data_row[1:]:
-			csv_row.append(str(cell))
+        # Afterwards, append strings of each cell to the csv_row list so that
+        # we have a list of the exact strings that we want written into this
+        # line of the epw file.
+        for cell in data_row[1:]:
+            csv_row.append(str(cell))
 
-		#: Finally, write that list to the epw_file string (and seperate each entry in the
-		#: list with a comma).
-		epw_file += ",".join(csv_row) + "\n"
+        # Finally, write that list to the epw_file string (and seperate each
+        # entry in the list with a comma).
+        epw_file += ",".join(csv_row) + "\n"
 
-	#: Write the generated string to the passed file.
-	#: We pre-generate the string as it is much quicker to append to a string than it is
-	#: to write to a file.
-	with open(filename,"w+") as epw:
-		epw.write(epw_file)
+    # Write the generated string to the passed file.
+    # We pre-generate the string as it is much quicker to append to a
+    # string than it is to write to a file.
+    with open(filename, "w+") as epw:
+        epw.write(epw_file)
 
 
-def get_climate_data(climate_file: str, lat: float, long: float, cdfvariable: str, time_range: list):
-	""" get_climate_data(str, float, float, list)
+def get_daily_averages(epw_data: list):
+    """ get_daily_averages(list)
 
-		Gets a list of data for each day of each year within time_range from
-		the climate file where the location is closest to lat, long.
+        Calculates each day's average from the passed epw data, and returns
+        a list of those averages.
 
-		Args:
-			climate_file(str): The path to the climate file to read from.
-			lat(float): The latitude to read data from.
-			long(float): The longitude to read data from.
-			cdfvariable(str): The variable to read from the netcdf file.
-			time_range(range): The range of years to read data from, to.
+        Args:
+            epw_data(list): The data read from the epw that we will be
+                    averaging with.
 
-		Returns:
-			a list with 366 lists. One for each day of the year in a leap year.
-			each list contains all the data found in the file for that specific day,
-			with each entry in the inner list is 1 year's entry for that day.
-	"""
+        Returns:
+            A list of averaged data.
+    """
 
-	#: Read the climate data out of the climate file.
-	raw_data = Dataset(climate_file)
+    averages = [[] for _ in range(366)]
+    running_averages = [0 for _ in range(len(epw_data[0]))]
+    current_day = epw_data[0][0].day
 
-	#: Get a list of the dates in the climate file.
-	data_dates = cdf.num2date(raw_data["time"][:], raw_data["time"].units)
+    for day_index, data_row in enumerate(epw_data):
 
-	#: Get the latitude of each location in the file.
-	lat_data = raw_data.variables["lat"][:]
+        if data_row[0].day != current_day:
+            current_day = data_row[0].day
 
-	#: Get the logitude of each location in the file.
-	long_data = raw_data.variables["lon"][:]
+            for i in range(len(running_averages)):
+                running_averages[i] /= 24
 
-	#: Find the incides of the data with the closest lat and long to those passed.
-	lat_index = lat_data.tolist().index(lat_data[np.abs(lat_data - lat).argmin()])
-	long_index = long_data.tolist().index(long_data[np.abs(long_data - long).argmin()])
+            averages[day_index] = running_averages[:]
+            running_averages = [0 for _ in range(len(epw_data[0]))]
 
-	#: Grab the actual relevant data from the file.
-	data = [[] for _ in range(366)]
-	for index, datapoint in enumerate(raw_data.variables[cdfvariable]):
-		time = data_dates[index]
+        for index, datapoint in enumerate(data_row):
+            if type(datapoint) is float or type(datapoint) is int:
+                running_averages[index] += datapoint
 
-		if time.year in time_range:
+    return averages
 
-			#: Appends the datapoint for the lat and long to its day's index in the list.
-			#: FIXME: leap year issue.
-			#:
-			#:	It is probable that time.timetuple().tm_yday wont return 366 for Feb 29th.
-			#:	If this is the case then a new function needs to be written to replace
-			#:	time.timetuple().tm_yday that returns 366 for Feb 29th, and all occurrences
-			#: 	of time.timetuple().tm_yday need to be replaced with that function.
-			#:	This is an issue because if feb 29th is not day 366, then all days after
-			#: 	feb 29th in a leap year will be shifted by one, causing issues with averaged etc.
-			data[time.timetuple().tm_yday - 1].append(datapoint[lat_index][long_index])
 
-	return data
+def get_climate_data(climate_file: str,
+                     lat: float,
+                     long: float,
+                     cdfvariable: str,
+                     time_range: list
+                     ):
+    """ get_climate_data(str, float, float, list)
+
+        Gets a list of data for each day of each year within time_range from
+        the climate file where the location is closest to lat, long.
+
+        Args:
+            climate_file(str): The path to the climate file to read from.
+            lat(float): The latitude to read data from.
+            long(float): The longitude to read data from.
+            cdfvariable(str): The variable to read from the netcdf file.
+            time_range(range): The range of years to read data from, to.
+
+        Returns:
+            a list with 366 lists. One for each day of the year in a leap year.
+            Each list contains all the data found in the file for that
+            specific day, with each entry in the inner list is 1 year's entry
+            for that day.
+    """
+
+    # Read the climate data out of the climate file.
+    raw_data = Dataset(climate_file)
+
+    # Get a list of the dates in the climate file.
+    data_dates = cdf.num2date(raw_data["time"][:], raw_data["time"].units)
+
+    # Get the latitude of each location in the file.
+    lat_data = raw_data.variables["lat"][:]
+
+    # Get the logitude of each location in the file.
+    long_data = raw_data.variables["lon"][:]
+
+    # Find the incides of the data with the closest lat and long to
+    # those passed.
+    lat_index = lat_data.tolist().index(
+                                  lat_data[np.abs(lat_data - lat).argmin()]
+                                  )
+
+    long_index = long_data.tolist().index(
+                                  long_data[np.abs(long_data - long).argmin()]
+                                  )
+
+    # Grab the actual relevant data from the file.
+    data = [[] for _ in range(366)]
+    for index, datapoint in enumerate(raw_data.variables[cdfvariable]):
+        time = data_dates[index]
+
+        if time.year in time_range:
+
+            # Appends the datapoint for the lat and long to its day's index in
+            # the list.
+            # FIXME: leap year issue.
+            #
+            #    It is probable that time.timetuple().tm_yday wont return 366
+            #    for Feb 29th. If this is the case then a new function needs to
+            #    be written to replace time.timetuple().tm_yday that returns
+            #    366 for Feb 29th, and all occurrences of
+            #    time.timetuple().tm_yday need to be replaced with that
+            #    function. This is an issue because if feb 29th is not day 366,
+            #    then all days after feb 29th in a leap year will be shifted by
+            #    one, causing issues with averaged etc.
+            data[time.timetuple().tm_yday - 1].append(
+                                              datapoint[lat_index][long_index]
+                                               )
+
+    return data
+
 
 def avg(lst: list):
-	""" This method returns the average value of a passed list."""
+    """ This method returns the average value of a passed list."""
 
-	return sum(lst) / len(lst) if len(lst) != 0 else 0
+    return sum(lst) / len(lst) if len(lst) != 0 else 0
+
 
 def gen_future_weather_file(lat: float,
-			    long: float,
-			    present_range: range,
-			    future_range: range,
-			    present_climate: str,
-			    future_climate: str,
-			    netcdf_variable: str,
-			    epw_file: str
-			):
-	""" gen_future_weather_file(float, float, range, range, str, str, str)
+                            long: float,
+                            present_range: range,
+                            future_range: range,
+                            present_climate: str,
+                            future_climate: str,
+                            netcdf_variable: str,
+                            epw_file: str
+                            ):
+    """ gen_future_weather_file(float, float, range, range, str, str, str)
 
-		Regenerates the passed epw file into a weather file represeting future data.
+        Regenerates the passed epw file into a weather file represeting future
+        data.
 
-		Args:
-			lat(float): The latitude to read data from climate files.
-			long(float): The logitude to read data from teh climate files.
-			present_range(range): The range of years that makes up "present" for
-					      this particular run.
-			future_range(range): The range of years that makes up "future" for
-					     this particular run.
-			present_climate(str): The path to the climate file with "present" data.
-			future_climate(str): The path to the climate file with "future" data.
-			epw_file(str): The path to the epw file to regenerate.
-	"""
+        Args:
+            lat(float): The latitude to read data from climate files.
 
-	#: Get the present and future climate data.
-	present_data = get_climate_data(present_climate, lat, long, netcdf_variable, present_range)
-	future_data = get_climate_data(future_climate, lat, long, netcdf, variable, future_range)
+            long(float): The logitude to read data from teh climate files.
 
-	#: Get the data from epw file and the headers from the epw.
-	epw_data, headers = get_epw_data(epw_file)
+            present_range(range): The range of years that makes up "present"
+                          for this particular run.
 
-	daily_averages = get_daily_averages(epw_data)
+            future_range(range): The range of years that makes up "future" for
+                         this particular run.
 
-	#: Morph the data in the file so that it reflects what it should be in the future.
-	#: IE) run the processes required in by the paper.
-	for row_index, data_row in enumerate(epw_data):
-		day = data_row[0].timetuple().tm_yday - 1
+            present_climate(str): The path to the climate file with "present"
+                         data.
 
-		#: morph_data currently has no implementation, so the data being passed
-		#: right now may not accurately reflect what will actually be passed upon
-		#: implementation.
-		epw_data[row_index] = morph_data(data_row, day, present_data, future_data, [])
+            future_climate(str): The path to the climate file with "future"
+                         data.
 
-	#: Write the data out to the epw file.
-	write_epw_data(epw_data, headers, epw_file[:-4] + "_future.epw")
+            epw_file(str): The path to the epw file to regenerate.
+    """
+
+    # Get the present and future climate data.
+    present_data = get_climate_data(present_climate, lat,
+                                    long, netcdf_variable, present_range)
+
+    future_data = get_climate_data(future_climate, lat, long,
+                                   netcdf_variable, future_range)
+
+    # Get the data from epw file and the headers from the epw.
+    epw_data, headers = get_epw_data(epw_file)
+
+    daily_averages = get_daily_averages(epw_data)
+
+    # Morph the data in the file so that it reflects what it should be in the
+    # future. IE) run the processes required in by the paper.
+    for row_index, data_row in enumerate(epw_data):
+        day = data_row[0].timetuple().tm_yday - 1
+
+        # morph_data currently has no implementation, so the data being passed
+        # right now may not accurately reflect what will actually be passed
+        # upon implementation.
+        epw_data[row_index] = morph_data(data_row, day, present_data,
+                                         future_data, daily_averages)
+
+    # Write the data out to the epw file.
+    write_epw_data(epw_data, headers, epw_file[:-4] + "_future.epw")
 
 if __name__ == "__main__":
 
-	#: Please note, each of these hard coded values is a tester that should
-	#: in the future be read from a command line argument rather than hard
-	#: coded.
-	lat = 49.116
-	long = -122.9249
-	present_start = 1951
-	present_end = 2000
-	future_start = 2050
-	future_end = 2100
-	present_climate = "climate_files/tasmin_gcm_prism_BCCAQ_CNRM-CM5_rcp85_r1i1p1_1951-2000.nc"
-	future_climate = "climate_files/tasmin_gcm_prism_BCCAQ_CNRM-CM5_rcp85_r1i1p1_2001-2100.nc"
-	epw = "weather_files/CAN_BC_KELOWNA_1123939_CWEC.epw"
-	netcdf_variable = "tasmin"
+    # Please note, each of these hard coded values is a tester that should
+    # in the future be read from a command line argument rather than hard
+    # coded.
+    lat = 49.116
+    long = -122.9249
+    present_start = 1951
+    present_end = 2000
+    future_start = 2050
+    future_end = 2100
 
-	gen_future_weather_file(
-	     lat,
-	     long,
-	     range(present_start, present_end +1),
-	     range(future_start, future_end + 1),
-	     present_climate,
-	     future_climate,
-	     netcdf_variable,
-	     epw
-	)
+    present_climate = "climate_files/tasmin_gcm_prism_BCCAQ_"\
+                      "CNRM-CM5_rcp85_r1i1p1_1951-2000.nc"
 
+    future_climate = "climate_files/tasmin_gcm_prism_BCCAQ_"\
+                     "CNRM-CM5_rcp85_r1i1p1_2001-2100.nc"
+
+    epw = "weather_files/CAN_BC_KELOWNA_1123939_CWEC.epw"
+    netcdf_variable = "tasmin"
+
+    gen_future_weather_file(
+         lat,
+         long,
+         range(present_start, present_end + 1),
+         range(future_start, future_end + 1),
+         present_climate,
+         future_climate,
+         netcdf_variable,
+         epw
+        )
