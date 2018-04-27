@@ -233,18 +233,18 @@ def get_daily_averages(epw_data: list):
 
     averages = [[] for _ in range(366)]
     running_averages = [0 for _ in range(len(epw_data[0]))]
-    current_day = epw_data[0][0].day
+    current_day = epw_data[0][0]
 
-    for day_index, data_row in enumerate(epw_data):
+    for data_row in epw_data:
 
-        if data_row[0].day != current_day:
-            current_day = data_row[0].day
-
+        if data_row[0].day != current_day.day:
             for i in range(len(running_averages)):
                 running_averages[i] /= 24
 
-            averages[day_index] = running_averages[:]
+            averages[current_day.timetuple().tm_yday - 1] = running_averages[:]
             running_averages = [0 for _ in range(len(epw_data[0]))]
+
+            current_day = data_row[0]
 
         for index, datapoint in enumerate(data_row):
             if type(datapoint) is float or type(datapoint) is int:
