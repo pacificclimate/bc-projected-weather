@@ -19,6 +19,7 @@
 
 from argparse import ArgumentParser
 from datetime import datetime
+from itertools import islice
 import csv
 
 import numpy as np
@@ -133,17 +134,13 @@ def get_epw_data(epw: IO):
             This method will return the data and then the headers in the file.
     """
 
-    # Read the epw file as a csv, and convert that csv into a list of strings.
-    # The headers dont need to be changed from here, however the data should
-    # be converted into its specific types.
+    # Read the epw file as a csv
+    # The data should be converted into its specific types.
     reader = csv.reader(epw)  # Read the epw file as a csv
-    csv_data = list(reader)  # Convert the csv reader into a list.
-    data = csv_data[8:]  # Grab the data from the file (rows 8 and on.)
 
     # Convert each cell in each row of data to its specific type. This way they
     # can be changed as required by later functions.
-    for index, row in enumerate(data):
-
+    def process_one_row(row):
         # Get the date of this row so that we can turn it into a datetime
         # object for easier use later.
         row_dates = [int(cell) for cell in row[:5]]
@@ -169,11 +166,13 @@ def get_epw_data(epw: IO):
 
         # Actually change the row we just worked on to have the values we
         # created above.
-        data[index] = [row_time, row[5]]
+        rv = [row_time, row[5]]
         for cell in row_vals:
-            data[index].append(cell)
+            rv.append(cell)
 
-    return data
+        yield rv
+
+    return [process_one_row(row) for row in islice(reader, 8, None)]
 
 
 def write_epw_data(data: list, headers: str, filename: str):
