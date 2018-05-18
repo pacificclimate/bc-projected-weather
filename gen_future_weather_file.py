@@ -17,9 +17,10 @@
     (eg hourly_dbt represents hourly dry buld temprature.)
 """
 
-import numpy as np
 from datetime import datetime
 import csv
+
+import numpy as np
 from netCDF4 import Dataset
 import netCDF4 as cdf
 
