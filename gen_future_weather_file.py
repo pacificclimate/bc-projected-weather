@@ -20,6 +20,7 @@
 from argparse import ArgumentParser
 from datetime import datetime
 import csv
+from io import FileIO
 
 import numpy as np
 from netCDF4 import Dataset
@@ -96,6 +97,24 @@ def morph_data(data: list,
     """
 
     return data
+
+
+def get_epw_header(epw_file: FileIO) -> str:
+    """get_epw_header(FileIO)
+
+        Extracts the header from an epw file and returns it.
+
+        Args:
+            epw_file(FileIO): An open epw file
+
+        Returns: (str): A string consisting of the header, usually the
+            first 8 rows of the file
+    """
+    pos = epw_file.tell()  # Save the current position
+    epw_file.seek(0)
+    rv = ''.join([epw_file.readline() for _ in range(8)])
+    epw_file.seek(pos)  # Reset the stream position
+    return rv
 
 
 def get_epw_data(epw_file: str):
