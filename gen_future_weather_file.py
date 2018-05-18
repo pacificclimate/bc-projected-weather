@@ -328,12 +328,6 @@ def get_climate_data(climate_file: str,
     return data
 
 
-def avg(lst: list):
-    """ This method returns the average value of a passed list."""
-
-    return sum(lst) / len(lst) if len(lst) != 0 else 0
-
-
 def gen_future_weather_file(lat: float,
                             long: float,
                             present_range: range,
