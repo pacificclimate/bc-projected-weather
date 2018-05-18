@@ -20,11 +20,11 @@
 from argparse import ArgumentParser
 from datetime import datetime
 import csv
-from io import FileIO
 
 import numpy as np
 from netCDF4 import Dataset
 import netCDF4 as cdf
+from typing import IO
 
 
 def calc_dbt(hourly_dbt: float,
@@ -99,13 +99,13 @@ def morph_data(data: list,
     return data
 
 
-def get_epw_header(epw_file: FileIO) -> str:
-    """get_epw_header(FileIO)
+def get_epw_header(epw_file: IO) -> str:
+    """get_epw_header(IO)
 
         Extracts the header from an epw file and returns it.
 
         Args:
-            epw_file(FileIO): An open epw file
+            epw_file(IO): An open epw file
 
         Returns: (str): A string consisting of the header, usually the
             first 8 rows of the file
@@ -117,7 +117,7 @@ def get_epw_header(epw_file: FileIO) -> str:
     return rv
 
 
-def get_epw_data(epw_file: str):
+def get_epw_data(epw: IO):
     """ get_epw_data(str)
 
         Gets the data out of an epw file, and returns it.
@@ -136,11 +136,9 @@ def get_epw_data(epw_file: str):
     # Read the epw file as a csv, and convert that csv into a list of strings.
     # The headers dont need to be changed from here, however the data should
     # be converted into its specific types.
-    with open(epw_file, "r") as epw:
-        reader = csv.reader(epw)  # Read the epw file as a csv
-        csv_data = list(reader)  # Convert the csv reader into a list.
-        data = csv_data[8:]  # Grab the data from the file (rows 8 and on.)
-        headers = csv_data[:8]  # Grab the headers from the file (rows 0 to 7.)
+    reader = csv.reader(epw)  # Read the epw file as a csv
+    csv_data = list(reader)  # Convert the csv reader into a list.
+    data = csv_data[8:]  # Grab the data from the file (rows 8 and on.)
 
     # Convert each cell in each row of data to its specific type. This way they
     # can be changed as required by later functions.
@@ -175,11 +173,10 @@ def get_epw_data(epw_file: str):
         for cell in row_vals:
             data[index].append(cell)
 
-    # Return the data and the headers.
-    return data, headers
+    return data
 
 
-def write_epw_data(data: list, headers: list, filename: str):
+def write_epw_data(data: list, headers: str, filename: str):
     """ write_epw_data(list, list, str)
 
         Combines the passed headers and data into an epw file with
@@ -188,19 +185,13 @@ def write_epw_data(data: list, headers: list, filename: str):
         Args:
             data(list): A list of lists, each inner list is a row of
                     data to be written to the epw file.
-            header(list): A list of lists, each inner list is a row of
-                      the header to be written to the epw file.
+            header(str): The header string from the original epw file.
             filename(str): The name of the file to be written.
     """
 
-    # Reassemble the headers into one string. Each inner list of headers
-    # gets its own line, and each item in each inner list is comma seperated.
-    for index, header in enumerate(headers):
-        headers[index] = ",".join(header)
-    headers = "\n".join(headers)
+    # Start with the headers and build from there
+    epw_file = headers
 
-    # Rebuild the list of data into a string so that we can write it to a file.
-    epw_file = headers + "\n"
     for data_row in data:
 
         # epw files mandate that if the -3rd position is 999.000 that it is
@@ -337,9 +328,7 @@ def get_climate_data(climate_file: str,
             #    be written to replace time.timetuple().tm_yday that returns
             #    366 for Feb 29th, and all occurrences of
             #    time.timetuple().tm_yday need to be replaced with that
-            #    function. This is an issue because if feb 29th is not day 366,
-            #    then all days after feb 29th in a leap year will be shifted by
-            #    one, causing issues with averaged etc.
+
             data[time.timetuple().tm_yday - 1].append(
                                               datapoint[lat_index][long_index]
                                                )
@@ -354,7 +343,7 @@ def gen_future_weather_file(lat: float,
                             present_climate: str,
                             future_climate: str,
                             netcdf_variable: str,
-                            epw_file: str
+                            epw_filename: str
                             ):
     """ gen_future_weather_file(float, float, range, range, str, str, str)
 
@@ -378,7 +367,7 @@ def gen_future_weather_file(lat: float,
             future_climate(str): The path to the climate file with "future"
                          data.
 
-            epw_file(str): The path to the epw file to regenerate.
+            epw_filename(str): The path to the epw file to regenerate.
     """
 
     # Get the present and future climate data.
@@ -389,7 +378,9 @@ def gen_future_weather_file(lat: float,
                                    netcdf_variable, future_range)
 
     # Get the data from epw file and the headers from the epw.
-    epw_data, headers = get_epw_data(epw_file)
+    with open(epw_filename) as epw_file:
+        epw_data = get_epw_data(epw_file)
+        headers = get_epw_header(epw_file)
 
     daily_averages = get_daily_averages(epw_data)
 
@@ -405,7 +396,7 @@ def gen_future_weather_file(lat: float,
                                          future_data, daily_averages)
 
     # Write the data out to the epw file.
-    write_epw_data(epw_data, headers, epw_file[:-4] + "_future.epw")
+    write_epw_data(epw_data, headers, epw_filename[:-4] + "_future.epw")
 
 
 if __name__ == "__main__":
