@@ -17,6 +17,7 @@
     (eg hourly_dbt represents hourly dry buld temprature.)
 """
 
+from argparse import ArgumentParser
 from datetime import datetime
 import csv
 
@@ -393,34 +394,49 @@ def gen_future_weather_file(lat: float,
     # Write the data out to the epw file.
     write_epw_data(epw_data, headers, epw_file[:-4] + "_future.epw")
 
+
 if __name__ == "__main__":
 
-    # Please note, each of these hard coded values is a tester that should
-    # in the future be read from a command line argument rather than hard
-    # coded.
-    lat = 49.116
-    long = -122.9249
-    present_start = 1951
-    present_end = 2000
-    future_start = 2050
-    future_end = 2100
+    parser = ArgumentParser()
 
-    present_climate = "climate_files/tasmin_gcm_prism_BCCAQ_"\
-                      "CNRM-CM5_rcp85_r1i1p1_1951-2000.nc"
+    parser.add_argument('lat', type=float, default=49.116,
+                        help="Latitude at which to generate a weather file")
+    parser.add_argument('lon', type=float, default=-122.9249,
+                        help="Longitude at which to generate a weather file")
+    parser.add_argument('present_start', type=int, default=1951,
+                        help="Starting year of the present climate period")
+    parser.add_argument('present_end', type=int, default=2000,
+                        help="Ending year of the present climate period")
+    parser.add_argument('future_start', type=int, default=2050,
+                        help="Starting year of the future climate period")
+    parser.add_argument('present_end', type=int, default=2100,
+                        help="Ending year of the future climate period")
+    parser.add_argument('present_climate_file', type=str,
+                        default="climate_files/tasmin_gcm_prism_BCCAQ_"
+                        "CNRM-CM5_rcp85_r1i1p1_1951-2000.nc",
+                        help="NetCDF file containing the present climate data")
+    parser.add_argument('future_climate_file', type=str,
+                        default="climate_files/tasmin_gcm_prism_BCCAQ_"
+                        "CNRM-CM5_rcp85_r1i1p1_2001-2100.nc",
+                        help="NetCDF file containing the future climate data")
+    parser.add_argument('netcdf_variable', type=str,
+                        default='tasmin',
+                        help="Variable name for which to generate a "
+                             "weather file")
+    parser.add_argument('epw', type=str,
+                        default="weather_files/"
+                        "CAN_BC_KELOWNA_1123939_CWEC.epw",
+                        help="")
 
-    future_climate = "climate_files/tasmin_gcm_prism_BCCAQ_"\
-                     "CNRM-CM5_rcp85_r1i1p1_2001-2100.nc"
-
-    epw = "weather_files/CAN_BC_KELOWNA_1123939_CWEC.epw"
-    netcdf_variable = "tasmin"
+    args = parser.parse_args()
 
     gen_future_weather_file(
-         lat,
-         long,
-         range(present_start, present_end + 1),
-         range(future_start, future_end + 1),
-         present_climate,
-         future_climate,
-         netcdf_variable,
-         epw
+        args.lat,
+        args.lon,
+        range(args.present_start, args.present_end + 1),
+        range(args.future_start, args.future_end + 1),
+        args.present_climate_file,
+        args.future_climate_file,
+        args.netcdf_variable,
+        args.epw
         )
