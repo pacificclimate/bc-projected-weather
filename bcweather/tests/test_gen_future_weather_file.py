@@ -1,5 +1,5 @@
 import io
-from gen_future_weather_file import get_epw_header
+from bcweather import get_epw_header
 
 
 def test_get_epw_header():
@@ -21,3 +21,7 @@ Line 9
     assert rv.endswith("Line 8\n")
     assert len(rv.splitlines()) == 8
     assert f.tell() == pos
+
+
+def test_get_climate_data(ncfile):
+    assert True
