@@ -342,7 +342,8 @@ def gen_future_weather_file(lat: float,
                             present_climate: str,
                             future_climate: str,
                             netcdf_variable: str,
-                            epw_filename: str
+                            epw_filename: str,
+                            epw_output_filename: str
                             ):
     """ gen_future_weather_file(float, float, range, range, str, str, str)
 
@@ -367,6 +368,8 @@ def gen_future_weather_file(lat: float,
                          data.
 
             epw_filename(str): The path to the epw file to regenerate.
+
+            epw_output_filename(str): The path to the future epw file to create.
     """
 
     # Get the present and future climate data.
@@ -395,7 +398,7 @@ def gen_future_weather_file(lat: float,
                                          future_data, daily_averages)
 
     # Write the data out to the epw file.
-    write_epw_data(epw_data, headers, epw_filename[:-4] + "_future.epw")
+    write_epw_data(epw_data, headers, epw_output_filename)
 
 
 if __name__ == "__main__":
@@ -430,6 +433,10 @@ if __name__ == "__main__":
                         default="weather_files/"
                         "CAN_BC_KELOWNA_1123939_CWEC.epw",
                         help="")
+    parser.add_argument('epw_output', type=str,
+                        default="weather_files/"
+                        "CAN_BC_KELOWNA_1123939_CWEC_future.epw",
+                        help="")
 
     args = parser.parse_args()
 
@@ -441,5 +448,6 @@ if __name__ == "__main__":
         args.present_climate_file,
         args.future_climate_file,
         args.netcdf_variable,
-        args.epw
+        args.epw,
+        args.epw_output
         )
