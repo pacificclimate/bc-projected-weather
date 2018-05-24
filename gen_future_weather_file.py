@@ -303,13 +303,8 @@ def get_climate_data(climate_file: str,
 
     # Find the incides of the data with the closest lat and long to
     # those passed.
-    lat_index = lat_data.tolist().index(
-                                  lat_data[np.abs(lat_data - lat).argmin()]
-                                  )
-
-    long_index = long_data.tolist().index(
-                                  long_data[np.abs(long_data - long).argmin()]
-                                  )
+    lat_index = np.abs(lat_data - lat).argmin()
+    long_index = np.abs(long_data - long).argmin()
 
     # Grab the actual relevant data from the file.
     data = [[] for _ in range(366)]
