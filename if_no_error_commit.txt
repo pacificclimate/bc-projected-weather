@@ -1,0 +1,1 @@
+Added a method to get the daily average of all values in the epw.
