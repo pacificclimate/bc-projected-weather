@@ -1,5 +1,8 @@
 import io
-from bcweather import get_epw_header
+
+import numpy
+
+from bcweather import get_epw_header, get_climate_data
 
 
 def test_get_epw_header():
@@ -24,4 +27,7 @@ Line 9
 
 
 def test_get_climate_data(ncfile):
-    assert True
+    data = get_climate_data(ncfile, 50.8, -118.38, 'tasmax', [1970, 1972])
+    print(data)
+    print(numpy.array(data).shape)
+    assert data.any()

@@ -1,11 +1,12 @@
 from datetime import datetime
-from itertools import islice
-import csv
 
 import numpy as np
 from netCDF4 import Dataset
 import netCDF4 as cdf
-from typing import IO, List
+from typing import IO
+import pandas
+
+from .epw import epw_to_data_frame
 
 
 def calc_dbt(hourly_dbt: float,
@@ -44,13 +45,13 @@ def calc_dbt(hourly_dbt: float,
     return hourly_dbt + delta_dbt + alpha_dbt * (hourly_dbt - daily_dbt_mean)
 
 
-def morph_data(data: list,
+def morph_data(data: np.array,
                date: datetime,
-               present_data: list,
-               future_data: list,
-               daily_averages: list
+               present_data: np.array,
+               future_data: np.array,
+               daily_averages: np.array
                ):
-    """ morph_data(list, datetime, list, list, list)
+    """ morph_data(numpy.array, datetime, numpy.array, numpy.array, numpy.array)
 
         This method takes in a single line of data from the epw file,
         and returns that line with the relevant datafields having been
@@ -77,7 +78,7 @@ def morph_data(data: list,
             a list of future data created based off the present data.
     """
 
-    return data
+    raise NotImplementedError
 
 
 def get_epw_header(epw_file: IO) -> str:
@@ -96,63 +97,6 @@ def get_epw_header(epw_file: IO) -> str:
     rv = ''.join([epw_file.readline() for _ in range(8)])
     epw_file.seek(pos)  # Reset the stream position
     return rv
-
-
-def get_epw_data(epw: IO):
-    """ get_epw_data(str)
-
-        Gets the data out of an epw file, and returns it.
-
-        Args:
-            epw_file(str): A string to the path of the epw file to read.
-
-        Returns:
-            (list, list): The first list returned is a list of lists where each
-                      inner list is a row of data from the epw file.
-                      The second list is another list of lists where each
-                      inner list is a row of header data from the epw file.
-            This method will return the data and then the headers in the file.
-    """
-
-    # Read the epw file as a csv
-    # The data should be converted into its specific types.
-    reader = csv.reader(epw)  # Read the epw file as a csv
-
-    # Convert each cell in each row of data to its specific type. This way they
-    # can be changed as required by later functions.
-    def process_one_row(row):
-        # Get the date of this row so that we can turn it into a datetime
-        # object for easier use later.
-        row_dates = [int(cell) for cell in row[:5]]
-        row_time = datetime(row_dates[0], row_dates[1],
-                            row_dates[2], row_dates[3] - 1,
-                            row_dates[4])
-
-        # Cells 6 to -9 (9 back from the end) can easilly be just sorted into
-        # ints or floats (float if there's a . in the string, int otherwise.)
-        # However, at position -9 we have a series of numbers representing
-        # weather codes. This must be left as a string.
-        row_vals = [float(c) if "." in c else int(c) for c in row[6:-9]]
-
-        row_vals.append(row[-8])  # Leave unchanged -8 as a string.
-
-        # The rest of the values in the file can be safely converted to ints or
-        # floats without loosing any key information.
-        for cell in row[-7:]:
-            if "." in cell:
-                row_vals.append(float(cell))
-            else:
-                row_vals.append(int(cell))
-
-        # Actually change the row we just worked on to have the values we
-        # created above.
-        rv = [row_time, row[5]]
-        for cell in row_vals:
-            rv.append(cell)
-
-        yield rv
-
-    return [process_one_row(row) for row in islice(reader, 8, None)]
 
 
 def write_epw_data(data: list, headers: str, filename: str):
@@ -208,55 +152,37 @@ def write_epw_data(data: list, headers: str, filename: str):
         epw.write(epw_file)
 
 
-def get_daily_averages(epw_data: List) -> List[List[float]]:
+def get_daily_averages(epw_data: pandas.Series, dates: pandas.Series) \
+                      -> np.ndarray:
     """ get_daily_averages(list)
 
         Calculates each day's average from the passed epw data, and returns
         a list of those averages.
 
         Args:
-            epw_data(list): The data read from the epw that we will be
+            epw_data(pandas.Series): The data read from the epw that we will be
                     averaging with.
+            dates(pandas.Series): The datetime series from the pandas DataFrame
 
         Returns:
-            A list of averaged data.
+            A numpy array of data averaged by julian day (day of year).
     """
-
-    averages = [[] for _ in range(366)]  # type: List
-    running_averages = [0.0 for _ in range(len(epw_data[0]))]
-    current_day = epw_data[0][0]
-
-    for data_row in epw_data:
-
-        if data_row[0].day != current_day.day:
-            for i in range(len(running_averages)):
-                running_averages[i] /= 24
-
-            averages[current_day.timetuple().tm_yday - 1] = running_averages[:]
-            running_averages = [0 for _ in range(len(epw_data[0]))]
-
-            current_day = data_row[0]
-
-        for index, datapoint in enumerate(data_row):
-            if type(datapoint) is float or type(datapoint) is int:
-                running_averages[index] += datapoint
-
-    return averages
+    return epw_data.groupby(dates.dt.strftime('%j')).mean().values
 
 
-def get_climate_data(climate_file: str,
+def get_climate_data(nc: Dataset,
                      lat: float,
                      long: float,
                      cdfvariable: str,
                      time_range: list
                      ):
-    """ get_climate_data(str, float, float, list)
+    """ get_climate_data(Dataset, float, float, list)
 
         Gets a list of data for each day of each year within time_range from
         the climate file where the location is closest to lat, long.
 
         Args:
-            climate_file(str): The path to the climate file to read from.
+            nc(Dataset): An open netCDF4.Dataset object.
             lat(float): The latitude to read data from.
             long(float): The longitude to read data from.
             cdfvariable(str): The variable to read from the netcdf file.
@@ -269,44 +195,26 @@ def get_climate_data(climate_file: str,
             for that day.
     """
 
-    # Read the climate data out of the climate file.
-    raw_data = Dataset(climate_file)
-
     # Get a list of the dates in the climate file.
-    data_dates = cdf.num2date(raw_data["time"][:], raw_data["time"].units)
+    data_dates = cdf.num2date(nc["time"][:], nc["time"].units)
+
+    startyear, endyear = time_range
+    t0 = np.argwhere(data_dates >= datetime(startyear, 1, 1)).min()
+    tn = np.argwhere(data_dates <= datetime(endyear, 1, 1)).max()
 
     # Get the latitude of each location in the file.
-    lat_data = raw_data.variables["lat"][:]
+    lat_data = nc.variables["lat"][:]
 
     # Get the logitude of each location in the file.
-    long_data = raw_data.variables["lon"][:]
+    long_data = nc.variables["lon"][:]
 
     # Find the incides of the data with the closest lat and long to
     # those passed.
-    lat_index = np.abs(lat_data - lat).argmin()
-    long_index = np.abs(long_data - long).argmin()
+    lat_index = np.absolute(lat_data - lat).argmin()
+    long_index = np.absolute(long_data - long).argmin()
 
     # Grab the actual relevant data from the file.
-    data = [[] for _ in range(366)]
-    for index, datapoint in enumerate(raw_data.variables[cdfvariable]):
-        time = data_dates[index]
-
-        if time.year in time_range:
-
-            # Appends the datapoint for the lat and long to its day's index in
-            # the list.
-            # FIXME: leap year issue.
-            #
-            #    It is probable that time.timetuple().tm_yday wont return 366
-            #    for Feb 29th. If this is the case then a new function needs to
-            #    be written to replace time.timetuple().tm_yday that returns
-            #    366 for Feb 29th, and all occurrences of
-            #    time.timetuple().tm_yday need to be replaced with that
-
-            data[time.timetuple().tm_yday - 1].append(
-                                              datapoint[lat_index][long_index]
-                                               )
-
+    data = nc.variables[cdfvariable][t0:tn, lat_index, long_index]
     return data
 
 
@@ -348,29 +256,26 @@ def gen_future_weather_file(lat: float,
     """
 
     # Get the present and future climate data.
-    present_data = get_climate_data(present_climate, lat,
-                                    long, netcdf_variable, present_range)
+    # with Dataset(present_climate) as f:
+    #     present_data = get_climate_data(f, lat,
+    #                                     long, netcdf_variable, present_range)
 
-    future_data = get_climate_data(future_climate, lat, long,
-                                   netcdf_variable, future_range)
+    # with Dataset(future_climate) as f:
+    #     future_data = get_climate_data(f, lat, long,
+    #                                    netcdf_variable, future_range)
 
     # Get the data from epw file and the headers from the epw.
     with open(epw_filename) as epw_file:
-        epw_data = get_epw_data(epw_file)
+        epw_data = epw_to_data_frame(epw_file)
         headers = get_epw_header(epw_file)
 
-    daily_averages = get_daily_averages(epw_data)
+    # daily_averages = get_daily_averages(epw_data)
 
     # Morph the data in the file so that it reflects what it should be in the
     # future. IE) run the processes required in by the paper.
-    for row_index, data_row in enumerate(epw_data):
-        day = data_row[0].timetuple().tm_yday - 1
-
-        # morph_data currently has no implementation, so the data being passed
-        # right now may not accurately reflect what will actually be passed
-        # upon implementation.
-        epw_data[row_index] = morph_data(data_row, day, present_data,
-                                         future_data, daily_averages)
+    # TODO: use the future data to adjust each column of epw_data across time
+    # epw_data[column_of_interest] = morph_data(present_data, future_data,
+    # daily_averages)
 
     # Write the data out to the epw file.
     write_epw_data(epw_data, headers, epw_output_filename)
