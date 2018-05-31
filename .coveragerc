@@ -1,0 +1,11 @@
+[report]
+fail_under = 65
+show_missing = True
+
+[run]
+source =
+    bcweather
+omit =
+    */tests/*
+    */gen_future_weather_file.py
+

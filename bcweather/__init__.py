@@ -167,7 +167,7 @@ def get_daily_averages(epw_data: pandas.Series, dates: pandas.Series) \
         Returns:
             A numpy array of data averaged by julian day (day of year).
     """
-    return epw_data.groupby(dates.dt.strftime('%j')).mean().values
+    return epw_data.groupby(dates.dt.strftime('%m %d')).mean().values
 
 
 def get_climate_data(nc: Dataset,

@@ -12,7 +12,8 @@ import pandas
 # temperature and precipiation related fields
 
 field_names = (
-    'year', 'month', 'day', 'hour', 'minute', 'dry_bulb_temperature',
+    'year', 'month', 'day', 'hour', 'minute',
+    'data_source_and_uncertainty_flags', 'dry_bulb_temperature',
     'dew_point_temperature', 'relative_humidity',
     'atmospheric_station_pressure', 'extraterrestrial_horizontal_radiation',
     'extraterrestrial_direct_normal_radition',
