@@ -50,10 +50,11 @@ def epw_to_data_frame(file_):
     """
     return pandas.read_csv(
         file_,
-        header=8,
+        header=7,
         names=field_names,
         index_col=False,
-        na_values=missing_values,
         parse_dates={'datetime': [0, 1, 2, 3, 4]},
         date_parser=date_converter
     )
+
+##        na_values=missing_values,
