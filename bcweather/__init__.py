@@ -388,11 +388,14 @@ def adjust_epw_with_prism(epw_data,prism_diff):
             epw_data (pandas dataframe): Data from EPW file
             prism_diff(range): 12 monthly PRISM temperature offsets
     """    
+    epw_months = pandas.DatetimeIndex(epw_data['datetime']).month
+    print('Months')
     new_epw = epw_data.copy()
-    epw_months = epw_data[['month']]
     months = range(1,13)
+    ##FIXME the SetWithCopyWarning for this assignment
     for mn in months:
-        new_epw.dry_bulb_temperature[epw_data.month == mn] = epw_data.dry_bulb_temperature[epw_data.month == mn] + round(prism_diff[mn-1],1)
+        ##new_epw.dry_bulb_temperature[epw_months == mn] = round(epw_data.dry_bulb_temperature[epw_months == mn] + prism_diff[mn-1],1)
+        new_epw.ix[epw_months == mn,'dry_bulb_temperature'] = round(new_epw.ix[epw_months == mn,'dry_bulb_temperature'] + prism_diff[mn-1],1)
     return(new_epw)
 
 def gen_prism_offset_weather_file(lat: float,
@@ -438,10 +441,9 @@ def gen_prism_offset_weather_file(lat: float,
         epw_data = epw_to_data_frame(epw_file)
         headers = get_epw_header(epw_file)
     
-    ##epw_offset = adjust_epw_with_prism(epw_data,prism_diff)
-    #print(headers)
+    epw_offset = adjust_epw_with_prism(epw_data,prism_diff)
+    print(epw_offset.shape)
     # Write the data out to the epw file.
     print(epw_data.loc[0].values.tolist())
     epw_output_filename = "/storage/data/projects/rci/weather_files/wx_files/TEST.epw"
-    write_epw_data(epw_data, headers, epw_output_filename)
-    return(headers)
+    write_epw_data(epw_offset, headers, epw_output_filename)
