@@ -5,7 +5,7 @@ import numpy
 import pandas
 
 from bcweather import get_epw_header, get_climate_data, morph_data
-from bcweather import get_daily_averages, gen_prism_offset_weather_file
+from bcweather import get_daily_values, gen_prism_offset_weather_file, gen_future_weather_file
 from bcweather.epw import epw_to_data_frame
 
 
@@ -31,9 +31,12 @@ Line 9
 
 
 def test_get_climate_data(ncfile):
-    data = get_climate_data(ncfile, 50.8, -118.38, 'tasmax', [1970, 1972])
-    ##print(data)
+    print(' ')
+    print('Test get climate data')
+    data = get_climate_data(ncfile, 50.8, -118.38, 'tasmax', [1970, 1971])
+##    print(data)
     print(numpy.array(data).shape)
+    print(len(data))
     assert data.any()
 
 
@@ -48,12 +51,26 @@ def test_morph_data():
     with pytest.raises(NotImplementedError):
         morph_data(0, 0, 0, 0, 0)
 
-##def test_get_daily_averages(epwfile):
-##    df = epw_to_data_frame(epwfile)
-##    x = get_daily_averages(df['dry_bulb_temperature'], df['datetime'])
-##    assert len(x) == 365
+def test_get_daily_values(epwfile):
+    df = epw_to_data_frame(epwfile)
+    x = get_daily_values(df['dry_bulb_temperature'], df['datetime'])
+    assert len(x) == 365
 
-def test_gen_prism_offset_weather_file():
-    epw_header = gen_prism_offset_weather_file(49.2,-123.2)
-    print(epw_header)
-    assert type(epw_header) == str
+
+##def test_gen_prism_offset_weather_file():
+##    gen_prism_offset_weather_file(49.2,-123.2)
+##    assert 1 == 1
+
+
+def test_gen_future_weather_file():
+    print('Test future weather file production')
+    ncdf = "/storage/home/ssobie/code/repos/bc-projected-weather/bcweather/tests/data/tiny_downscaled.nc"
+    x = gen_future_weather_file(lat=49.2,long=-123.2,
+                                present_range=[1961,1975],
+                                future_range=[1976,1990],
+                                present_climate=ncdf,
+                                future_climate=ncdf,
+                                netcdf_variable="tasmax",
+                                epw_filename="/storage/home/ssobie/code/repos/bc-projected-weather/bcweather/tests/data/CAN_BC_ABBOTSFORD-A_1100031_CWEC.epw",
+                                epw_output_filename="/storage/home/ssobie/code/repos/bc-projected-weather/bcweather/tests/data/future_test.epw")
+    assert len(x) == 365

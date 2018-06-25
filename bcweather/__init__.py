@@ -154,12 +154,12 @@ def write_epw_data(data: list, headers: str, filename: str):
         epw.write(epw_file)
 
 
-def get_daily_averages(epw_data: pandas.Series, dates: pandas.Series) \
+def get_daily_values(epw_data: pandas.Series, dates: pandas.Series) \
                       -> np.ndarray:
-    """ get_daily_averages(list)
+    """ get_daily_values(list)
 
-        Calculates each day's average from the passed epw data, and returns
-        a list of those averages.
+        Calculates each day's max, min and average from the passed epw data, and returns
+        a dataframe of those values.
 
         Args:
             epw_data(pandas.Series): The data read from the epw that we will be
@@ -167,9 +167,14 @@ def get_daily_averages(epw_data: pandas.Series, dates: pandas.Series) \
             dates(pandas.Series): The datetime series from the pandas DataFrame
 
         Returns:
-            A numpy array of data averaged by julian day (day of year).
+            A dataframe of data averaged by julian day (day of year).
     """
-    return epw_data.groupby(dates.dt.strftime('%m %d')).mean().values
+    daily_max = epw_data.groupby(dates.dt.strftime('%m %d')).max().values
+    daily_min = epw_data.groupby(dates.dt.strftime('%m %d')).min().values
+    daily_mean = epw_data.groupby(dates.dt.strftime('%m %d')).mean().values
+    daily_dict = {'Max':daily_max,'Min':daily_min,'Mean':daily_mean}
+    daily_df = pandas.DataFrame(daily_dict,columns=['Max','Min','Mean'])    
+    return daily_df
 
 
 def get_climate_data(nc: Dataset,
@@ -191,7 +196,7 @@ def get_climate_data(nc: Dataset,
             time_range(range): The range of years to read data from, to.
 
         Returns:
-            a list with 366 lists. One for each day of the year in a leap year.
+            a list with 12 lists. One for each day of the year in a leap year.
             Each list contains all the data found in the file for that
             specific day, with each entry in the inner list is 1 year's entry
             for that day.
@@ -203,7 +208,6 @@ def get_climate_data(nc: Dataset,
     startyear, endyear = time_range
     t0 = np.argwhere(data_dates >= datetime(startyear, 1, 1)).min()
     tn = np.argwhere(data_dates <= datetime(endyear, 1, 1)).max()
-
     # Get the latitude of each location in the file.
     lat_data = nc.variables["lat"][:]
 
@@ -214,10 +218,13 @@ def get_climate_data(nc: Dataset,
     # those passed.
     lat_index = np.absolute(lat_data - lat).argmin()
     long_index = np.absolute(long_data - long).argmin()
-
-    # Grab the actual relevant data from the file.
-    data = nc.variables[cdfvariable][t0:tn, lat_index, long_index]
-    return data
+    # Grab the actual relevant data from the file (tn+1 to fix the indexing)
+    data = nc.variables[cdfvariable][t0:tn+1, lat_index, long_index]
+    data_dict = {'Time':data_dates[t0:tn+1],'Data':data}
+    data_frame = pandas.DataFrame(data_dict,columns=['Time','Data'])
+    data_monthly = data_frame.groupby(data_frame['Time'].dt.month).mean().values
+    ##print(data_monthly)
+    return data_monthly
 
 
 def gen_future_weather_file(lat: float,
@@ -258,21 +265,32 @@ def gen_future_weather_file(lat: float,
     """
 
     # Get the present and future climate data.
-    # with Dataset(present_climate) as f:
-    #     present_data = get_climate_data(f, lat,
-    #                                     long, netcdf_variable, present_range)
+    with Dataset(present_climate) as f:
+        present_data = get_climate_data(f, lat,
+                                         long, netcdf_variable, present_range)
+    print("Past Monthly:")
+    print(present_data)
+    with Dataset(future_climate) as f:
+        future_data = get_climate_data(f, lat, long,
+                                       netcdf_variable, future_range)
+    print("Future Monthly:")
+    print(future_data)
+    
+    delta = future_data - present_data
+    print('Shift')
+    print(delta)
 
-    # with Dataset(future_climate) as f:
-    #     future_data = get_climate_data(f, lat, long,
-    #                                    netcdf_variable, future_range)
 
     # Get the data from epw file and the headers from the epw.
     with open(epw_filename) as epw_file:
         epw_data = epw_to_data_frame(epw_file)
         headers = get_epw_header(epw_file)
 
-    # daily_averages = get_daily_averages(epw_data)
-
+    print('EPW Hourly Length')
+    print(len(epw_data['dry_bulb_temperature']))
+    daily_averages = get_daily_values(epw_data['dry_bulb_temperature'],epw_data['datetime'])
+    print("EPW daily averages")
+    print(daily_averages.shape)
     # Morph the data in the file so that it reflects what it should be in the
     # future. IE) run the processes required in by the paper.
     # TODO: use the future data to adjust each column of epw_data across time
@@ -281,7 +299,7 @@ def gen_future_weather_file(lat: float,
 
     # Write the data out to the epw file.
     write_epw_data(epw_data, headers, epw_output_filename)
-
+    return(daily_averages['Max'])
 ##---------------------------------------------------------------------
 ##---------------------------------------------------------------------
 ##PRISM offset weather files
@@ -444,6 +462,5 @@ def gen_prism_offset_weather_file(lat: float,
     epw_offset = adjust_epw_with_prism(epw_data,prism_diff)
     print(epw_offset.shape)
     # Write the data out to the epw file.
-    print(epw_data.loc[0].values.tolist())
     epw_output_filename = "/storage/data/projects/rci/weather_files/wx_files/TEST.epw"
     write_epw_data(epw_offset, headers, epw_output_filename)
