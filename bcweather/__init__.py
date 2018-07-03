@@ -275,12 +275,17 @@ def morph_radiation(epw_data: pandas.DataFrame,
 
         normal_rad  = epw_data.ix[epw_months == mn,"direct_normal_radiation"]        
         clouds  = epw_data.ix[epw_months == mn,"total_sky_cover"]
+        opaque  = epw_data.ix[epw_months == mn,"opaque_sky_cover"]
         morphed_clouds = clouds * alpha_clt[mn-1]
         morphed_clouds[clouds > 10] = 10
+        morphed_opaque = opaque * alpha_clt[mn-1]
+        morphed_opaque[opaque > 10] = 10
+
         ##Assume direct normal radiation responds inversely proportionally to cloud cover changes
         morphed_normal_rad = normal_rad / alpha_clt[mn-1]
         
-        new_epw.ix[epw_months == mn,"total_sky_cover"] = round(morphed_clouds,0)
+        new_epw.ix[epw_months == mn,"total_sky_cover"] = round(morphed_clouds,0).astype(int)
+        new_epw.ix[epw_months == mn,"opaque_sky_cover"] = round(morphed_opaque,0).astype(int)
         new_epw.ix[epw_months == mn,"direct_normal_radiation"] = round(morphed_normal_rad,0)
         
     return new_epw
@@ -541,11 +546,12 @@ def gen_future_weather_file(epw_filename: str,
     epw_psl_morph = stretch_gcm_variable(epw_rhs_morph,lon,lat,"atmospheric_station_pressure","psl",gcms,present_range,future_range)
     print('Windspeed')
     epw_wspd_morph = stretch_gcm_variable(epw_psl_morph,lon,lat,"wind_speed","wspd",gcms,present_range,future_range)
-    print('Total Sky Cover')
-    epw_tsc_morph = stretch_gcm_variable(epw_wspd_morph,lon,lat,"total_sky_cover","clt",gcms,present_range,future_range)
-    print('Opaque Sky Cover')
-    epw_osc_morph = stretch_gcm_variable(epw_tsc_morph,lon,lat,"opaque_sky_cover","clt",gcms,present_range,future_range)    
-    epw_rad_morph = morph_radiation(epw_osc_morph,lon,lat,gcms,present_range,future_range)
+    ##print('Total Sky Cover')
+    ##epw_tsc_morph = stretch_gcm_variable(epw_wspd_morph,lon,lat,"total_sky_cover","clt",gcms,present_range,future_range)
+    ##print('Opaque Sky Cover')
+    ##epw_osc_morph = stretch_gcm_variable(epw_tsc_morph,lon,lat,"opaque_sky_cover","clt",gcms,present_range,future_range)    
+    print('Radiation')
+    epw_rad_morph = morph_radiation(epw_wspd_morph,lon,lat,gcms,present_range,future_range)
 
     ##print(monthly_averages.shape)
     # Morph the data in the file so that it reflects what it should be in the
