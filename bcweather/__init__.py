@@ -11,11 +11,11 @@ from .epw import epw_to_data_frame
 
 def morph_dry_bulb_temperature(epw_data: pandas.DataFrame,
                                lon: float,lat: float,
-                               gcm: str,
+                               gcms: list,
                                present_range: range,
                                future_range: range
                               ):
-    """ morph_dry_bulb_temperature(pandas.DataFrame, float,float,str,range,range)
+    """ morph_dry_bulb_temperature(pandas.DataFrame, float,float,list,range,range)
 
         This function takes in data from the epw file, and returns 
         the dataframe with the dry bulb temperature column having been
@@ -28,7 +28,7 @@ def morph_dry_bulb_temperature(epw_data: pandas.DataFrame,
                     from the file.)
             lon(float): The longitude to read data from climate files
             lat(float): The latitude to read data from climate files
-            gcm(str): The gcm name.
+            gcms(list): The list of ensemble gcm names.
             present_range(range): Year bounds for the present climate.
 
             future_range(range): Year bounds for the future climate.
@@ -38,37 +38,40 @@ def morph_dry_bulb_temperature(epw_data: pandas.DataFrame,
     """
     ## Calculate the monthly averages of tasmax, tasmin, tas for the EPW data
     epw_monthly_averages = get_monthly_values(epw_data['dry_bulb_temperature'],epw_data['datetime'])
+    ##FIXME with non-hard coded location
     gcm_dir = "/storage/data/climate/downscale/BCCAQ2+PRISM/high_res_downscaling/bccaq_gcm_bc_subset/" 
 
-    present_tasmax_file = gcm_dir + gcm + "/tasmax_day_BCCAQ2_" + gcm + "_rcp85_r1i1p1_1951-2000.nc"
-    future_tasmax_file = gcm_dir + gcm + "/tasmax_day_BCCAQ2_" + gcm + "_rcp85_r1i1p1_2001-2100.nc"
-    with Dataset(present_tasmax_file) as f:
-        present_tasmax = get_climate_data(f, lat,lon, "tasmax", present_range)
-    with Dataset(future_tasmax_file) as f:
-        future_tasmax = get_climate_data(f, lat, lon,"tasmax", future_range)
-    delta_tasmax = future_tasmax - present_tasmax
 
-    present_tasmin_file = gcm_dir + gcm + "/tasmin_day_BCCAQ2_" + gcm + "_rcp85_r1i1p1_1951-2000.nc"
-    future_tasmin_file = gcm_dir + gcm + "/tasmin_day_BCCAQ2_" + gcm + "_rcp85_r1i1p1_2001-2100.nc"
-    with Dataset(present_tasmin_file) as f:
-        present_tasmin = get_climate_data(f, lat,lon, "tasmin", present_range)
-    with Dataset(future_tasmin_file) as f:
-        future_tasmin = get_climate_data(f, lat, lon,"tasmin", future_range)
-    delta_tasmin = future_tasmin - present_tasmin
+    tasmax_alpha_delta = get_ensemble_alpha_and_delta(cdfvariable='tasmax',lon=lon,lat=lat,
+                                                      gcms=gcms,gcm_dir=gcm_dir,ds_type="day_BCCAQ2",
+                                                      present_suffix="_1951-2000.nc",
+                                                      future_suffix="_2001-2100.nc",
+                                                      present_range=present_range,future_range=future_range)
+    delta_tasmax = tasmax_alpha_delta['delta']
+    tasmin_alpha_delta = get_ensemble_alpha_and_delta(cdfvariable='tasmin',lon=lon,lat=lat,
+                                                      gcms=gcms,gcm_dir=gcm_dir,ds_type="day_BCCAQ2",
+                                                      present_suffix="_1951-2000.nc",
+                                                      future_suffix="_2001-2100.nc",
+                                                      present_range=present_range,future_range=future_range)
+    delta_tasmin = tasmin_alpha_delta['delta']
+    ##Option to use change in variability instead of change in diurnal cycle
+    ##--------------------------------------------
+    ##tasmax_std = get_ensemble_alpha_and_delta(cdfvariable='tasmax',lon=lon,lat=lat,
+    ##                                            gcms=gcms,gcm_dir=gcm_dir,ds_type="day_BCCAQ2",
+    ##                                            present_suffix="_1951-2000.nc",
+    ##                                            future_suffix="_2001-2100.nc",
+    ##                                            present_range=present_range,future_range=future_range,
+    ##                                            std='sigma')
+    ##tasmin_std = get_ensemble_alpha_and_delta(cdfvariable='tasmin',lon=lon,lat=lat,
+    ##                                            gcms=gcms,gcm_dir=gcm_dir,ds_type="day_BCCAQ2",
+    ##                                            present_suffix="_1951-2000.nc",
+    ##                                            future_suffix="_2001-2100.nc",
+    ##                                            present_range=present_range,future_range=future_range,
+    ##                                            std='sigma')
 
-    print(present_tasmax_file)
-    with Dataset(present_tasmax_file) as f:
-        present_std_tasmax = get_climate_data(f, lat,lon, "tasmax", present_range,std='sigma')
-    with Dataset(future_tasmax_file) as f:
-        future_std_tasmax = get_climate_data(f, lat, lon,"tasmax", future_range,std='sigma')        
-    print('Future TX STD')
-    print(future_std_tasmax)
-    print('Past TX STD')
-    print(present_std_tasmax)
-    print('TX STD Alpha')
-    print(future_std_tasmax/present_std_tasmax)
+    ##--------------------------------------------
 
-    delta_tas = (future_tasmax+future_tasmin)/2 - (present_tasmax+present_tasmin)/2
+    delta_tas = (tasmax_alpha_delta['present']+tasmax_alpha_delta['future'])/2 - (tasmin_alpha_delta['present']+tasmin_alpha_delta['future'])/2
     print('DBT delta')
     print(delta_tas)
     new_epw = epw_data.copy()
@@ -82,8 +85,6 @@ def morph_dry_bulb_temperature(epw_data: pandas.DataFrame,
         anoms = epw_data.ix[epw_months == mn,'dry_bulb_temperature'] - epw_monthly_averages['Mean'][mn-1]
         morphed_dbt = shift + alpha * anoms
         new_epw.ix[epw_months == mn,'dry_bulb_temperature'] = round(morphed_dbt,1)
-
-
     return new_epw
 
 
@@ -116,6 +117,7 @@ def morph_dewpoint_temperature(epw_data: pandas.DataFrame,
     """
     ## Calculate the monthly averages of tasmax, tasmin, tas for the EPW data
     epw_monthly_averages = get_monthly_values(epw_data['dew_point_temperature'],epw_data['datetime'])
+    ##FIXME with non-hard coded location
     gcm_dir = "/storage/data/climate/downscale/CMIP5/building_code/" 
 
     ##Dewpoint
@@ -180,6 +182,7 @@ def stretch_gcm_variable(epw_data: pandas.DataFrame,
             a DataFrame with one stretched column of data.
     """
     ## Calculate the monthly averages of tasmax, tasmin, tas for the EPW data
+    ##FIXME with non-hard coded location
     gcm_dir = "/storage/data/climate/downscale/CMIP5/building_code/" 
 
     ##Find the ensemble average value for alpha
@@ -219,8 +222,8 @@ def morph_radiation(epw_data: pandas.DataFrame,
     """ morph_radiation(pandas.DataFrame, float,float,list,range,range)
 
         This function takes in data from the epw file, and returns 
-        the dataframe with the global horizontal, direct normal and diffuse horizontal 
-        radiation variable having been replaced with future versions. The GCM data is from
+        the dataframe with the global horizontal, direct normal, diffuse horizontal radiation and sky
+        cover variables having been replaced with future versions. The GCM data is from
         the "building_code" directory.
 
         Args:
@@ -238,6 +241,7 @@ def morph_radiation(epw_data: pandas.DataFrame,
             a DataFrame with one stretched column of data.
     """
     ## Calculate the monthly averages of tasmax, tasmin, tas for the EPW data
+    ##FIXME with non-hard coded location
     gcm_dir = "/storage/data/climate/downscale/CMIP5/building_code/" 
     
     ##Total Horizontal Solar Radiation
@@ -425,7 +429,10 @@ def get_ensemble_alpha_and_delta(cdfvariable: str,
             a dict with two numpy arrays with 12 values. One for each month of the year.
     """
     print('Alpha Delta Ens Variable')
-    print(cdfvariable)                                 
+    print(cdfvariable) 
+    rcp = "historical+rcp85"
+    if ds_type == 'day_BCCAQ2':
+        rcp = 'rcp85'
     ##Find the ensemble average value for alpha
     alpha_matrix = np.zeros((12,len(gcms)))
     delta_matrix = np.zeros((12,len(gcms)))
@@ -433,17 +440,17 @@ def get_ensemble_alpha_and_delta(cdfvariable: str,
         run = "r1i1p1"
         if gcm == "MIROC5":
             run = "r3i1p1"
-        present_file = gcm_dir + gcm + "/"+cdfvariable+"_"+ds_type+"_"+gcm+"_historical+rcp85_"+run+present_suffix
+        present_file = gcm_dir + gcm + "/"+cdfvariable+"_"+ds_type+"_"+gcm+"_"+rcp+"_"+run+present_suffix
         with Dataset(present_file) as f:
             present_climate = get_climate_data(f, lat,lon, cdfvariable, present_range,std)
-        future_file = gcm_dir + gcm + "/"+cdfvariable+"_"+ds_type+"_"+gcm+"_historical+rcp85_"+run+future_suffix
+        future_file = gcm_dir + gcm + "/"+cdfvariable+"_"+ds_type+"_"+gcm+"_"+rcp+"_"+run+future_suffix
         with Dataset(future_file) as f:
             future_climate = get_climate_data(f, lat, lon, cdfvariable, future_range,std)
         alpha_matrix[:,i] = (future_climate / present_climate)[:,0]
         delta_matrix[:,i] = (future_climate - present_climate)[:,0]
     alpha_ens = np.mean(alpha_matrix,axis=1)
     delta_ens = np.mean(delta_matrix,axis=1)
-    rv = {'alpha':alpha_ens,'delta':delta_ens}
+    rv = {'alpha':alpha_ens,'delta':delta_ens,'present':present_climate[:,0],'future':future_climate[:,0]}
     return rv                                 
 
 def get_climate_data(nc: Dataset,
@@ -538,7 +545,7 @@ def gen_future_weather_file(epw_filename: str,
         headers = get_epw_header(epw_file)
 
     ##Morph columns of EPW dataframe based on selected options
-    epw_dbt_morph = morph_dry_bulb_temperature(epw_data,lon,lat,'MRI-CGCM3',present_range,future_range)
+    epw_dbt_morph = morph_dry_bulb_temperature(epw_data,lon,lat,gcms,present_range,future_range)
     epw_dpt_morph = morph_dewpoint_temperature(epw_dbt_morph,lon,lat,gcms,present_range,future_range)
     print('Relative Humidity')
     epw_rhs_morph = stretch_gcm_variable(epw_dpt_morph,lon,lat,"relative_humidity","rhs",gcms,present_range,future_range)
@@ -546,19 +553,8 @@ def gen_future_weather_file(epw_filename: str,
     epw_psl_morph = stretch_gcm_variable(epw_rhs_morph,lon,lat,"atmospheric_station_pressure","psl",gcms,present_range,future_range)
     print('Windspeed')
     epw_wspd_morph = stretch_gcm_variable(epw_psl_morph,lon,lat,"wind_speed","wspd",gcms,present_range,future_range)
-    ##print('Total Sky Cover')
-    ##epw_tsc_morph = stretch_gcm_variable(epw_wspd_morph,lon,lat,"total_sky_cover","clt",gcms,present_range,future_range)
-    ##print('Opaque Sky Cover')
-    ##epw_osc_morph = stretch_gcm_variable(epw_tsc_morph,lon,lat,"opaque_sky_cover","clt",gcms,present_range,future_range)    
-    print('Radiation')
+    print('Radiation and Sky Cover')
     epw_rad_morph = morph_radiation(epw_wspd_morph,lon,lat,gcms,present_range,future_range)
-
-    ##print(monthly_averages.shape)
-    # Morph the data in the file so that it reflects what it should be in the
-    # future. IE) run the processes required in by the paper.
-    # TODO: use the future data to adjust each column of epw_data across time
-    # epw_data[column_of_interest] = morph_data(present_data, future_data,
-    # monthly_averages)
 
     # Write the data out to the epw file.
     write_epw_data(epw_rad_morph, headers, epw_output_filename)
@@ -614,6 +610,7 @@ def prism_ncfile(varname):
         Args:
             varname(str): Variable name
     """
+    ##FIXME with non-hard coded location
     fname = '/storage/data/projects/rci/weather_files/PRISM/' + varname + '_lm_subset.nc'
     dst = cdf.Dataset(fname, 'r')
     return dst

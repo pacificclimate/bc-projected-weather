@@ -30,14 +30,14 @@ Line 9
     assert f.tell() == pos
 
 
-##def test_get_climate_data(ncfile):
-##    print(' ')
-##    print('Test get climate data')
-##    data = get_climate_data(ncfile, 50.8, -118.38, 'tasmax', [1970, 1971])
-##    print(data)
-##    print(numpy.array(data).shape)
-##    print(len(data))
-##    assert data.any()
+def test_get_climate_data(ncfile):
+    print(' ')
+    print('Test get climate data')
+    data = get_climate_data(ncfile, 50.8, -118.38, 'tasmax', [1970, 1971])
+    print(data)
+    print(numpy.array(data).shape)
+    print(len(data))
+    assert data.any()
 
 
 def test_epw_to_data_frame(epwfile):
@@ -47,11 +47,11 @@ def test_epw_to_data_frame(epwfile):
     assert 'dry_bulb_temperature' in df.columns
 
 
-##def test_get_monthly_values(epwfile):
-##    df = epw_to_data_frame(epwfile)
-##    x = get_monthly_values(df['dry_bulb_temperature'], df['datetime'])
-##    print(x)
-##    assert x.shape == (12,3)
+def test_get_monthly_values(epwfile):
+    df = epw_to_data_frame(epwfile)
+    x = get_monthly_values(df['dry_bulb_temperature'], df['datetime'])
+    print(x)
+    assert x.shape == (12,3)
 
 
 ##def test_gen_prism_offset_weather_file():
