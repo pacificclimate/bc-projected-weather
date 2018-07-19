@@ -7,6 +7,7 @@ from netCDF4 import Dataset
 
 from bcweather import get_epw_header, get_climate_data, get_ensemble_averages
 from bcweather import get_epw_summary_values, gen_prism_offset_weather_file, generate_dry_bulb_temperature, morph_dry_bulb_temperature
+from bcweather import generate_dewpoint_temperature, morph_dewpoint_temperature, generate_horizontal_radiation, morph_horizontal_radiation
 from bcweather.epw import epw_to_data_frame
 
 
@@ -34,18 +35,20 @@ Line 9
 def test_get_climate_data(ncfile):
     print(' ')
     print('Test get climate data')
-    gcm = 'HadGEM2-CC'
-    gcm_file = "/storage/data/climate/downscale/BCCAQ2+PRISM/high_res_downscaling/bccaq_gcm_bc_subset/"+gcm+"/tasmax_day_BCCAQ2_"+gcm+"_rcp85_r1i1p1_1951-2000.nc" 
+    gcm = 'ACCESS1-0'
+    gcm_file = "/storage/data/climate/downscale/CMIP5/building_code/"+gcm+"/dewpoint_day_"+gcm+"_historical+rcp85_r1i1p1_19500101-21001231.nc"
+    ##"/storage/data/climate/downscale/BCCAQ2+PRISM/high_res_downscaling/bccaq_gcm_bc_subset/"+gcm+"/tasmax_day_BCCAQ2_"+gcm+"_rcp85_r1i1p1_1951-2000.nc" 
     with Dataset(gcm_file) as f:
         past_climate = get_climate_data(f, 
-                                        49.03,-122.36,  'tasmax', [1971, 2000],'%m')
+                                        49.03,-122.36,  'dewpoint', [1971, 2000],'%m')
     print('Get climate present')
     print(past_climate['mean'])
 
-    gcm_file = "/storage/data/climate/downscale/BCCAQ2+PRISM/high_res_downscaling/bccaq_gcm_bc_subset/"+gcm+"/tasmax_day_BCCAQ2_"+gcm+"_rcp85_r1i1p1_2001-2100.nc" 
+    gcm_file = "/storage/data/climate/downscale/CMIP5/building_code/"+gcm+"/dewpoint_day_"+gcm+"_historical+rcp85_r1i1p1_19500101-21001231.nc"
+    ###"/storage/data/climate/downscale/BCCAQ2+PRISM/high_res_downscaling/bccaq_gcm_bc_subset/"+gcm+"/tasmax_day_BCCAQ2_"+gcm+"_rcp85_r1i1p1_2001-2100.nc" 
     with Dataset(gcm_file) as f:
         proj_climate = get_climate_data(f, 
-                                        49.03,-122.36,  'tasmax', [2041, 2070],'%m')
+                                        49.03,-122.36,  'dewpoint', [2041, 2070],'%m')
     print('Get climate future')
     print(proj_climate['mean'])
     print('Delta')
@@ -56,16 +59,17 @@ def test_get_climate_data(ncfile):
 """
 def test_get_ensemble_averages():
     print('Test Ensemble Alpha Delta')
-    cdfvariable = 'tasmax'
+    cdfvariable = 'dewpoint'
     rcp = 'rcp85'
-    gcm_dir = "/storage/data/climate/downscale/BCCAQ2+PRISM/high_res_downscaling/bccaq_gcm_bc_subset/" 
+    gcm_dir = "/storage/data/climate/downscale/CMIP5/building_code/"  
+    ##"/storage/data/climate/downscale/BCCAQ2+PRISM/high_res_downscaling/bccaq_gcm_bc_subset/" 
     gcms = ["ACCESS1-0","CanESM2","CNRM-CM5","CSIRO-Mk3-6-0","GFDL-ESM2G","HadGEM2-CC","HadGEM2-ES","inmcm4","MIROC5","MRI-CGCM3"]
     glen = len(gcms)
     past_files = []
     proj_files = []
     for gcm in gcms:
-        past_file = glob.glob(gcm_dir + gcm + '/' + cdfvariable + '_day_*' + rcp + '*1951-2000.nc')
-        proj_file = glob.glob(gcm_dir + gcm + '/' + cdfvariable + '_day_*' + rcp + '*2001-2100.nc')
+        past_file = glob.glob(gcm_dir + gcm + '/' + cdfvariable + '_day_*' + rcp + '*19500101-21001231.nc') ##'*1951-2000.nc')
+        proj_file = glob.glob(gcm_dir + gcm + '/' + cdfvariable + '_day_*' + rcp + '*19500101-21001231.nc') ##'*2001-2100.nc')
         past_files.append(past_file[0])
         proj_files.append(proj_file[0])
 
@@ -79,13 +83,13 @@ def test_get_ensemble_averages():
                                            gcm_files=past_files,
                                            time_range=[1971,2000],
                                            factor=factor)
-    past_mean = tasmax_present['mean']
+    past_mean = tasmax_present['std']
     tasmax_future = get_ensemble_averages(cdfvariable=cdfvariable,
                                           lon=-122.36,lat=49.03,
                                           gcm_files=proj_files,
                                           time_range=[2041,2070],
                                           factor=factor)
-    proj_mean = tasmax_future['mean']    
+    proj_mean = tasmax_future['std']    
     print('Past means')
     print(past_mean)
     print('Proj means')
@@ -93,9 +97,10 @@ def test_get_ensemble_averages():
     print('Deltas')
     print(proj_mean-past_mean)
     print('Ens')
-    print(numpy.mean(proj_mean-past_mean,axis=1))
+    print(numpy.mean(proj_mean/past_mean,axis=1))
     assert(proj_mean.shape == (12,10))
 """
+
 
 """
 def test_epw_to_data_frame(epwfile):
@@ -152,7 +157,7 @@ def test_get_epw_summary_values(epwfile):
 #                             future_range=[2041,2070])
 #    assert type(x) == pandas.DataFrame
 
-
+"""
 def test_generate_dry_bulb_temperature(epwfile):
     print('Test GCM stretch with GCM ensemble')
     rcp = 'rcp85'
@@ -187,7 +192,9 @@ def test_generate_dry_bulb_temperature(epwfile):
                                          factor='%m'
                                         )
     assert type(test) == numpy.array
+"""
 
+"""
 def test_generate_dewpoint_temperature(epwfile):
     rcp = 'rcp85'
     df = epw_to_data_frame(epwfile)
@@ -203,14 +210,79 @@ def test_generate_dewpoint_temperature(epwfile):
         dewpoint_present_gcm_files.append(dewpoint_present_file[0])
         dewpoint_future_gcm_files.append(dewpoint_future_file[0])
         
+    print(dewpoint_present_gcm_files)
     test = generate_dewpoint_temperature(epw_dwpt=df['dew_point_temperature'],
                                          epw_dates=df['datetime'],
                                          lon=-122.36, lat=49.03,
-                                         dewpoint_present_gcm_files=dewpoint_present_gcm_files,
-                                         dewpoint_future_gcm_files=dewpoint_future_gcm_files,
+                                         present_gcm_files=dewpoint_present_gcm_files,
+                                         future_gcm_files=dewpoint_future_gcm_files,
                                          present_range=[1971,2000],
                                          future_range=[2041,2070],
-                                         factor='%m'
+                                         factor='%m',
                                         )
-    assert type(test) == numpy.array
+    assert len(test) == len(df['dew_point_temperature'])
+"""
 
+def test_generate_horizontal_radiation(epwfile):
+    rcp = 'rcp85'
+    df = epw_to_data_frame(epwfile)
+    gcm_dir = "/storage/data/climate/downscale/CMIP5/building_code/" 
+    gcms = ["ACCESS1-0","CanESM2","CNRM-CM5","CSIRO-Mk3-6-0","GFDL-ESM2G","HadGEM2-CC","HadGEM2-ES","inmcm4","MIROC5","MRI-CGCM3"]
+    glen = len(gcms)    
+    rsds_present_gcm_files = []
+    rsds_future_gcm_files = []
+
+    for gcm in gcms:
+        rsds_present_file = glob.glob(gcm_dir + gcm + '/' + 'rsds' + '_day_*' + rcp + '*19500101-21001231.nc')
+        rsds_future_file = glob.glob(gcm_dir + gcm + '/' + 'rsds' + '_day_*' + rcp + '*19500101-21001231.nc')
+        rsds_present_gcm_files.append(rsds_present_file[0])
+        rsds_future_gcm_files.append(rsds_future_file[0])
+        
+    print(rsds_present_gcm_files)
+    test = generate_horizontal_radiation(epw_ghr=df['global_horizontal_radiation'],
+                                         epw_dhr=df['diffuse_horizontal_radiation'],
+                                         epw_dates=df['datetime'],
+                                         lon=-122.36, lat=49.03,
+                                         present_gcm_files=rsds_present_gcm_files,
+                                         future_gcm_files=rsds_future_gcm_files,
+                                         present_range=[1971,2000],
+                                         future_range=[2041,2070],
+                                         factor='%m',
+                                        )
+    print(numpy.array(df['global_horizontal_radiation'][0:31]))
+    print(numpy.array(df['diffuse_horizontal_radiation'][0:31]))
+    print(test[0:31,:])
+    assert len(test[:,0]) == len(df['global_horizontal_radiation'])
+
+"""
+def test_generate_stretched_series(epwfile):
+    rcp = 'rcp85'
+    df = epw_to_data_frame(epwfile)
+    gcm_dir = "/storage/data/climate/downscale/CMIP5/building_code/" 
+    gcms = ["ACCESS1-0","CanESM2","CNRM-CM5","CSIRO-Mk3-6-0","GFDL-ESM2G","HadGEM2-CC","HadGEM2-ES","inmcm4","MIROC5","MRI-CGCM3"]
+    glen = len(gcms)    
+    rsds_present_gcm_files = []
+    rsds_future_gcm_files = []
+
+    for gcm in gcms:
+        rsds_present_file = glob.glob(gcm_dir + gcm + '/' + 'rsds' + '_day_*' + rcp + '*19500101-21001231.nc')
+        rsds_future_file = glob.glob(gcm_dir + gcm + '/' + 'rsds' + '_day_*' + rcp + '*19500101-21001231.nc')
+        rsds_present_gcm_files.append(rsds_present_file[0])
+        rsds_future_gcm_files.append(rsds_future_file[0])
+        
+    print(rsds_present_gcm_files)
+    test = generate_stretched_series(epw_data=df['direct_normal_radiation'],
+                                     epw_dates=df['datetime'],
+                                     lon=-122.36, lat=49.03,
+                                     cdfvariable='rsds',
+                                     present_gcm_files=rsds_present_gcm_files,
+                                     future_gcm_files=rsds_future_gcm_files,
+                                     present_range=[1971,2000],
+                                     future_range=[2041,2070],
+                                     factor='%m',
+                                     morphing_function=morph_direct_normal_radiation
+                                    )
+    print(numpy.array(df['direct_normal_radiation'][0:31]))
+    print(test[0:31])
+    assert len(test) == len(df['direct_normal_radiation'])
+"""
