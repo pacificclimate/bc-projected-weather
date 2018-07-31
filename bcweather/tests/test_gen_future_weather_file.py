@@ -7,7 +7,7 @@ from netCDF4 import Dataset
 
 from bcweather import get_epw_header, get_climate_data, get_ensemble_averages
 from bcweather import get_epw_summary_values, gen_prism_offset_weather_file, generate_dry_bulb_temperature, morph_dry_bulb_temperature
-from bcweather import generate_dewpoint_temperature, morph_dewpoint_temperature, generate_horizontal_radiation, morph_horizontal_radiation
+from bcweather import generate_dewpoint_temperature, morph_dewpoint_temperature, generate_horizontal_radiation, morph_horizontal_radiation, format_netcdf_series
 from bcweather.epw import epw_to_data_frame
 
 
@@ -124,10 +124,13 @@ def test_get_epw_summary_values(epwfile):
     print(epw_tas[ix])
     print(len(epw_tas[ix]))
     y = get_epw_summary_values(df['dry_bulb_temperature'], df['datetime'],
-                               '%m','mean')
+                               '%Y-%m-%d','max')
     print(y)
-    assert y.shape == (12, 3)
+    z = get_epw_summary_values(y['data'],y['datetime'],'%Y %m %d','mean')
+    print(z)
+    assert z.shape == (12, 3)
 """
+
 
 # def test_gen_prism_offset_weather_file():
 #    gen_prism_offset_weather_file(49.2,-123.2)
@@ -157,7 +160,7 @@ def test_get_epw_summary_values(epwfile):
 #                             future_range=[2041,2070])
 #    assert type(x) == pandas.DataFrame
 
-"""
+
 def test_generate_dry_bulb_temperature(epwfile):
     print('Test GCM stretch with GCM ensemble')
     rcp = 'rcp85'
@@ -189,10 +192,14 @@ def test_generate_dry_bulb_temperature(epwfile):
                                          tasmin_future_gcm_files=tasmin_future_gcm_files,
                                          present_range=[1971,2000],
                                          future_range=[2041,2070],
-                                         factor='%m'
+                                         factor='%m %d'
                                         )
+    a = numpy.column_stack((numpy.asarray(df['dry_bulb_temperature']),test))
+    print(a.shape)
+    print(a)
     assert type(test) == numpy.array
-"""
+
+
 
 """
 def test_generate_dewpoint_temperature(epwfile):
@@ -223,6 +230,7 @@ def test_generate_dewpoint_temperature(epwfile):
     assert len(test) == len(df['dew_point_temperature'])
 """
 
+"""
 def test_generate_horizontal_radiation(epwfile):
     rcp = 'rcp85'
     df = epw_to_data_frame(epwfile)
@@ -253,6 +261,7 @@ def test_generate_horizontal_radiation(epwfile):
     print(numpy.array(df['diffuse_horizontal_radiation'][0:31]))
     print(test[0:31,:])
     assert len(test[:,0]) == len(df['global_horizontal_radiation'])
+"""
 
 """
 def test_generate_stretched_series(epwfile):
@@ -285,4 +294,17 @@ def test_generate_stretched_series(epwfile):
     print(numpy.array(df['direct_normal_radiation'][0:31]))
     print(test[0:31])
     assert len(test) == len(df['direct_normal_radiation'])
+"""
+"""
+def test_format_netcdf_series():
+    print(' ')
+    print('Test Format Netcdf Series')
+    time_range = [1971,1972]
+    calendar = 'gregorian'
+    ##data = numpy.arange(1,731,1)
+    data = numpy.arange(1,732,1)
+    ##data = numpy.arange(1,721,1)
+    test = format_netcdf_series(time_range,calendar,data)
+    print(test)
+    assert type(test) == numpy.array    
 """

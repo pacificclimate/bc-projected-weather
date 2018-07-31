@@ -41,20 +41,20 @@ def morph_dry_bulb_temperature(epw_tas: pandas.Series,
     """
 
     # ----------------------------------------------------------
-    # FIX Possible fix
-    # Calculate the monthly averages of tasmax, tasmin, tas for the EPW data
-    # This version would allow specifying the time factor
-    # Daily average temperatures
-    ##epw_daily_averages = get_epw_summary_values(epw_data['dry_bulb_temperature'],
-    ##                                          epw_data['datetime'],'%Y %m %d',mean)
-    ### Monthly average temperatures
-    ##epw_monthly_averages = get_epw_summary_values(epw_daily_averages['dry_bulb_temperature'],
-    ##                                          epw_daily_averages['datetime'],'%m',mean)
-   
-    epw_averages = get_epw_summary_values(epw_tas,
-                                          epw_dates,'%m','mean')
- 
-    # FIX to replace with alternative to if statement if possible
+    # Time averaged temperatures based on specific factor
+    epw_daily_averages = get_epw_summary_values(epw_tas,
+                                                epw_dates,'%Y %m %d','mean')
+    epw_tas_averages = get_epw_summary_values(epw_daily_averages['data'],
+                                              epw_daily_averages['datetime'],factor,'mean')['data']
+    epw_daily_max = get_epw_summary_values(epw_tas,
+                                           epw_dates,'%Y %m %d','max')
+    epw_tas_max = get_epw_summary_values(epw_daily_max['data'],
+                                         epw_daily_max['datetime'],factor,'mean')['data']
+    epw_daily_min = get_epw_summary_values(epw_tas,
+                                           epw_dates,'%Y %m %d','min')
+    epw_tas_min = get_epw_summary_values(epw_daily_min['data'],
+                                         epw_daily_min['datetime'],factor,'mean')['data']
+        
     if (factor == '%m'):
         epw_factor = pandas.DatetimeIndex(epw_dates).month
     if (factor == '%m %d'):
@@ -66,9 +66,8 @@ def morph_dry_bulb_temperature(epw_tas: pandas.Series,
         ix = epw_factor == uf
         shift = epw_tas[ix] + tas_delta[uf-1]
         alpha = (tasmax_delta[uf-1] - tasmin_delta[uf-1]) / \
-            (epw_averages['Max'][uf-1] -
-             epw_averages['Min'][uf-1])
-        anoms = epw_tas[ix] - epw_averages['Mean'][uf-1]
+            (epw_tas_max[uf-1] - epw_tas_min[uf-1])
+        anoms = epw_tas[ix] - epw_tas_averages[uf-1]
         morphed_dbt[ix] = round(shift + alpha * anoms,1)
     return(morphed_dbt)
 
@@ -350,7 +349,6 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
             a list with future dry bulb temperature data.
     """
     # Morphing factors from the input gcm files
-    print('Tasmax')
     tasmax_present = get_ensemble_averages(cdfvariable='tasmax',
                                            lon=lon, lat=lat,
                                            gcm_files=tasmax_present_gcm_files,
@@ -363,12 +361,12 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
                                            factor=factor)
     tasmax_delta = tasmax_future['mean'] - tasmax_present['mean']
     
-    print('Tasmin')
     tasmin_present = get_ensemble_averages(cdfvariable='tasmin',
                                            lon=lon, lat=lat,
                                            gcm_files=tasmin_present_gcm_files,
                                            time_range=present_range,
                                            factor=factor)
+
     tasmin_future = get_ensemble_averages(cdfvariable='tasmin',
                                            lon=lon, lat=lat,
                                            gcm_files=tasmin_future_gcm_files,
@@ -380,11 +378,10 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
     # (as is done in the "stretch" definition for other variables in Belcher).
     tas_delta = (tasmax_future['mean']+tasmin_future['mean'])/2 - (
         tasmax_present['mean']+tasmin_present['mean'])/2
-    
     morphed_epw_tas = morph_dry_bulb_temperature(epw_tas,epw_dates,
-                                                 np.mean(tasmax_delta,axis=1),
-                                                 np.mean(tasmin_delta,axis=1),
-                                                 np.mean(tas_delta,axis=1),
+                                                 np.nanmean(tasmax_delta,axis=1),
+                                                 np.nanmean(tasmin_delta,axis=1),
+                                                 np.nanmean(tas_delta,axis=1),
                                                  factor)
     return morphed_epw_tas
 # -----------------------------------------------------------------
@@ -565,8 +562,6 @@ def get_ensemble_averages(cdfvariable: str,
         Returns:
             a dict with two numpy arrays. One for each time interval of the year.
     """
-    print('GCM Ensemble')
-    print(cdfvariable)
     # Leave options for monthly or daily averaging
     # FIX: prefer not to hard code the aggregated time length
     tlen = 0
@@ -583,13 +578,11 @@ def get_ensemble_averages(cdfvariable: str,
                 f, lat, lon, cdfvariable, time_range,factor)
         mean_aggregate[:, i] = file_climate['mean'][:, 0]
         std_aggregate[:, i] = file_climate['std'][:, 0]
-        # Compute the ensemble averages here
-        # ens_climatologies =  {'mean':np.mean(mean_aggregate,axis=1),
-        #                       'std':np.mean(std_aggregate,axis=1)}
     ens_climatologies =  {'mean':mean_aggregate,
                           'std':std_aggregate}
     return ens_climatologies
 
+# Address the netcdf time calendar issues
 def cftime_to_datetime(data_dates,calendar):
     # Convert cftime dates to string 
     ex_years = [date.strftime('%Y') for date in data_dates]
@@ -606,6 +599,44 @@ def cftime_to_datetime(data_dates,calendar):
     # Convert to array
     dates_array = np.asarray(dates_list)
     return(dates_array)
+
+# Fill in missing leap and month dates for 365/360 calendars
+def format_netcdf_series(time_range,calendar,data):
+    # Set up full date series 
+    startyear,endyear = time_range
+    full_dates = pandas.date_range(str(startyear)+'-01-01',str(endyear)+'-12-31')
+    ex_years = [date.strftime('%Y') for date in full_dates]
+    ex_months = [date.strftime('%m') for date in full_dates]
+    ex_days = [date.strftime('%d') for date in full_dates]
+    dates_matrix = np.column_stack((ex_years,ex_months,ex_days))
+    ymd = [x+'-'+y+'-'+z for x,y,z in zip(ex_years,ex_months,ex_days)]
+    dates_list = [datetime.strptime(date, '%Y-%m-%d') for date in ymd]
+    ylen = int(np.diff(time_range))+1
+    empty_vector = np.empty(ylen*365)
+    empty_vector[:] = np.nan
+ 
+    # Add NAN for missing days where needed
+    # Distribute missing days equally through 360 day calendar
+    if calendar == '360_day':
+        hix = np.repeat(True,365*ylen)
+        blanks = np.arange(72,365*ylen,73)
+        hix[blanks] = False
+        empty_vector[hix] = data        
+        data = empty_vector
+
+    # If 360 it must still pass through the 365 option to add the leap day
+    if calendar == '365_day' or calendar == '360_day':
+        indices = ['-02-29' in s for s in ymd]        
+        empty_vector = np.empty(len(ymd))
+        empty_vector[:] = np.nan
+        empty_vector[~np.array(indices)] = data        
+        dates_matrix = {'Time':dates_list,'Data':empty_vector}
+
+    # If gregorian or standard it should have necessary dates
+    if calendar != '365_day' and calendar != '360_day':
+        dates_matrix = {'Time':dates_list,'Data':data}
+
+    return(dates_matrix)    
 
 def get_climate_data(nc: Dataset,
                      lat: float,
@@ -633,25 +664,18 @@ def get_climate_data(nc: Dataset,
     """
 
     # Get a list of the dates in the climate file.
-    print('Dates')
     data_dates = cdf.num2date(nc["time"][:], nc["time"].units,nc["time"].calendar)
-
     dates_array = cftime_to_datetime(data_dates,nc['time'].calendar)
     startyear,endyear = time_range
 
     t0 = np.argwhere(dates_array >= datetime(startyear, 1, 1)).min()
-    print(dates_array[t0])
-    print(data_dates[t0])
     if nc['time'].calendar == "360_day":
         tn = np.argwhere(dates_array <= datetime(endyear, 12, 30)).max()
     else:
         tn = np.argwhere(dates_array <= datetime(endyear, 12, 31)).max()
-    print(dates_array[tn])
-    print(data_dates[tn])
 
     # Get the latitude of each location in the file.
     lat_data = nc.variables["lat"][:]
-
     # Get the logitude of each location in the file.
     lon_data = nc.variables["lon"][:]
 
@@ -662,13 +686,16 @@ def get_climate_data(nc: Dataset,
 
     # Grab the actual relevant data from the file (tn+1 to fix the indexing)
     data = nc.variables[cdfvariable][t0:tn+1, lat_index, lon_index]
-
-    data_dict = {'Time': dates_array[t0:tn+1], 'Data': data} ##{'Time': data_dates[t0:tn+1], 'Data': data}
-    data_frame = pandas.DataFrame(data_dict, columns=['Time', 'Data'])
+    standard_data = format_netcdf_series(time_range,nc["time"].calendar,data)
+    data_frame = pandas.DataFrame(standard_data, columns=['Time', 'Data'])
     time_mean = data_frame.groupby(
         data_frame['Time'].dt.strftime(factor)).mean().values
     time_std = data_frame.groupby(
         data_frame['Time'].dt.strftime(factor)).std().values
+    # Remove the extra date that only appears with leap years
+    if factor == '%m %d':
+        time_mean = time_mean[0:365]
+        time_std = time_std[0:365]
     data_clim = {'mean':time_mean, 'std':time_std}
     return data_clim
 
@@ -830,28 +857,33 @@ def get_epw_summary_values(epw_data: pandas.Series, dates: pandas.Series,
     """
     #----------------------------------------------------
     # Prefer to use something like this with specified agg factor and operator
-    #input_dict = {'datetime': dates, 'data': epw_data}
-    #input_df = pandas.DataFrame(input_dict, columns=['datetime', 'data'])
-    #aggregate_values = input_df.groupby(input_df['datetime'].dt.strftime(factor)).agg(operator)
-    #return aggregate_values
-    # FIXME - How do you return daily dates if the operator is 'mean' instead of 'max' or 'min'
+    input_dict = {'datetime': dates, 'data': epw_data}
+    input_df = pandas.DataFrame(input_dict, columns=['datetime', 'data'])
+    aggregate_values = input_df.groupby(input_df['datetime'].dt.strftime(factor)).agg(operator)
+    # Could convert to string and back to dates using dataframe index, but taking max of time
+    # takes only one line.
+    aggregate_dates = input_df.groupby(input_df['datetime'].dt.strftime(factor)).max()['datetime']
+    agg_dict = {'datetime':aggregate_dates,'data':aggregate_values['data']}
+    return pandas.DataFrame(agg_dict, columns=['datetime', 'data'])
+    
     #----------------------------------------------------
 
-    # Existing way
-    hourly_dict = {'datetime':dates,'hourly':epw_data}
-    hourly_df = pandas.DataFrame(hourly_dict,columns=['datetime','hourly'])    
+    # Old way
+    #hourly_dict = {'datetime':dates,'hourly':epw_data}
+    #hourly_df = pandas.DataFrame(hourly_dict,columns=['datetime','hourly'])    
 
-    daily_max = hourly_df.groupby(hourly_df['datetime'].dt.strftime('%m %d')).max()
-    monthly_max = daily_max.groupby(daily_max['datetime'].dt.strftime('%m')).mean()
-    daily_mean = hourly_df.groupby(hourly_df['datetime'].dt.strftime('%m %d')).mean()
-    daily_mean['datetime'] = daily_max['datetime'] ##FIXME this doesn't seem correct
-    monthly_mean = daily_mean.groupby(daily_mean['datetime'].dt.strftime('%m')).mean()
-    daily_min = hourly_df.groupby(hourly_df['datetime'].dt.strftime('%m %d')).min()
-    monthly_min = daily_min.groupby(daily_min['datetime'].dt.strftime('%m')).mean()
+    #daily_max = hourly_df.groupby(hourly_df['datetime'].dt.strftime('%m %d')).max()
+    #monthly_max = daily_max.groupby(daily_max['datetime'].dt.strftime('%m')).mean()
+    #daily_mean = hourly_df.groupby(hourly_df['datetime'].dt.strftime('%m %d')).mean()
+    #daily_mean['datetime'] = daily_max['datetime'] ##FIXME this doesn't seem correct
+    #monthly_mean = daily_mean.groupby(daily_mean['datetime'].dt.strftime('%m')).mean()
+    #daily_min = hourly_df.groupby(hourly_df['datetime'].dt.strftime('%m %d')).min()
+    #monthly_min = daily_min.groupby(daily_min['datetime'].dt.strftime('%m')).mean()
 
-    monthly_dict = {'Max':monthly_max['hourly'],'Min':monthly_min['hourly'],'Mean':monthly_mean['hourly']}
-    monthly_df = pandas.DataFrame(monthly_dict,columns=['Max','Min','Mean'])    
-    return monthly_df
+    #monthly_dict = {'Max':monthly_max['hourly'],'Min':monthly_min['hourly'],'Mean':monthly_mean['hourly']}
+    #monthly_df = pandas.DataFrame(monthly_dict,columns=['Max','Min','Mean'])    
+    #print(monthly_df)
+    #return monthly_df
 
 
 # ---------------------------------------------------------------------
