@@ -10,8 +10,10 @@ import glob
 
 from .epw import epw_to_data_frame
 
+
+
 #-----------------------------------
-# Conceptual Core Morphing Functions
+# Core Morphing Functions
 
 # Take the daily/monthly delta factors, compute the morphed series
 # and return the new series
@@ -61,7 +63,6 @@ def morph_dry_bulb_temperature(epw_tas: pandas.Series,
         epw_factor = pandas.DatetimeIndex(epw_dates).day
     unique_factors = epw_factor.unique()
     morphed_dbt = np.zeros(len(epw_tas))
-
     for uf in unique_factors:
         ix = epw_factor == uf
         shift = epw_tas[ix] + tas_delta[uf-1]
@@ -96,11 +97,12 @@ def morph_dewpoint_temperature(epw_dwpt: pandas.Series,
         Returns:
             an array with future dry bulb temperature data.
     """
-    # FIX - replace with specified time factor averaging (like DBT)
-    epw_averages = get_epw_summary_values(epw_dwpt,
-                                          epw_dates,factor,'mean')
-
-    # FIX to replace with alternative to if statement if possible
+    # Time averaged temperatures based on specific factor
+    epw_daily_averages = get_epw_summary_values(epw_dwpt,
+                                                epw_dates,'%Y %m %d','mean')
+    epw_averages = get_epw_summary_values(epw_daily_averages['data'],
+                                              epw_daily_averages['datetime'],factor,'mean')['data']
+    # 
     if (factor == '%m'):
         epw_factor = pandas.DatetimeIndex(epw_dates).month
     if (factor == '%m %d'):
@@ -111,8 +113,8 @@ def morph_dewpoint_temperature(epw_dwpt: pandas.Series,
     ix = epw_factor == unique_factors[0]
     for uf in unique_factors:
         ix = epw_factor == uf
-        shift = epw_averages['Mean'][uf-1] + dewpoint_delta[uf-1]
-        stretch = (epw_dwpt[ix] - epw_averages['Mean'][uf-1]) * dewpoint_alpha[uf-1]
+        shift = epw_averages[uf-1] + dewpoint_delta[uf-1]
+        stretch = (epw_dwpt[ix] - epw_averages[uf-1]) * dewpoint_alpha[uf-1]
         morphed_dwpt[ix] = round(shift + stretch,1)
     return(morphed_dwpt)
 
@@ -140,11 +142,6 @@ def morph_direct_normal_radiation(epw_dnr: pandas.Series,
         Returns:
             an array with future hourly epw data.
     """
-    # FIX - replace with specified time factor averaging (like DBT)
-    epw_averages = get_epw_summary_values(epw_dnr,
-                                          epw_dates,factor,'mean')
- 
-    # FIX to replace with alternative to if statement if possible
     if (factor == '%m'):
         epw_factor = pandas.DatetimeIndex(epw_dates).month
     if (factor == '%m %d'):
@@ -184,13 +181,7 @@ def morph_horizontal_radiation(epw_ghr: pandas.Series,
         Returns:
             an 2D array with future hourly epw data.
     """
-    # FIX - replace with specified time factor averaging (like DBT)
-    epw_ghr_averages = get_epw_summary_values(epw_ghr,
-                                          epw_dates,factor,'mean')
-    epw_dhr_averages = get_epw_summary_values(epw_dhr,
-                                          epw_dates,factor,'mean')
- 
-    # FIX to replace with alternative to if statement if possible
+
     if (factor == '%m'):
         epw_factor = pandas.DatetimeIndex(epw_dates).month
     if (factor == '%m %d'):
@@ -201,9 +192,10 @@ def morph_horizontal_radiation(epw_ghr: pandas.Series,
     for uf in unique_factors:
         ix = epw_factor == uf
         global_hz_rad = epw_ghr[ix]
-        global_hz_rad[global_hz_rad == 0] = 1
+        flag = global_hz_rad == 0
         diffuse_hz_rad = epw_dhr[ix]
         diffuse_to_total_ratio = diffuse_hz_rad / global_hz_rad
+        diffuse_to_total_ratio[flag] = 0
         morphed_global_hz_rad = global_hz_rad * alpha[uf-1]
         morphed_diffuse_hz_rad = morphed_global_hz_rad * diffuse_to_total_ratio
         morphed_rad[ix,0] = round(morphed_global_hz_rad,0)
@@ -247,7 +239,7 @@ def morph_by_stretch(epw_data: pandas.Series,
     for uf in unique_factors:
         ix = epw_factor == uf
         stretch = alpha[uf-1]
-        morphed[ix] = epw_data * stretch
+        morphed[ix] = epw_data[ix] * stretch
     return(morphed)
 
 # ------------------------------------------------------
@@ -259,17 +251,19 @@ def morph_relative_humidity(epw_rhs: pandas.Series,
     morphed_rhs = morph_by_stretch(epw_rhs,epw_dates,
                                    rhs_alpha,factor)    
     morphed_rhs[morphed_rhs > 100] = 100
-    return(round(morphed_rhs,0))
+    rv = np.asarray(morphed_rhs).astype(int)
+    return(np.round(rv,0))
 
 # ------------------------------------------------------
-def morph_surface_pressure(epw_psl: pandas.Series,
-                           epw_dates: pandas.Series,
-                           psl_alpha: list,
-                           factor: str
-                            ):
+def morph_atmospheric_station_pressure(epw_psl: pandas.Series,
+                                       epw_dates: pandas.Series,
+                                       psl_alpha: list,
+                                       factor: str
+                                      ):
     morphed_psl = morph_by_stretch(epw_psl,epw_dates,
-                                   psl_alpha,factor)    
-    return(round(morphed_rhs,0))
+                                   psl_alpha,factor)
+    rv = np.asarray(morphed_psl).astype(int)
+    return(np.round(rv,0))
  
 # ------------------------------------------------------
 def morph_windspeed(epw_wspd: pandas.Series,
@@ -279,7 +273,8 @@ def morph_windspeed(epw_wspd: pandas.Series,
                    ):
     morphed_wspd = morph_by_stretch(epw_wspd,epw_dates,
                                    wspd_alpha,factor)    
-    return(round(morphed_wspd,1))
+    rv = np.asarray(morphed_wspd).astype(int)
+    return(np.round(rv,1))
 
 # ------------------------------------------------------
 
@@ -291,7 +286,8 @@ def morph_total_sky_cover(epw_tsc: pandas.Series,
     morphed_tsc = morph_by_stretch(epw_tsc,epw_dates,
                                    tsc_alpha,factor)    
     morphed_tsc[morphed_tsc > 10] = 10    
-    return(round(morphed_tsc,0))
+    rv = np.asarray(morphed_tsc).astype(int)
+    return(np.round(rv,0))
 
 # ------------------------------------------------------
 
@@ -303,9 +299,23 @@ def morph_opaque_sky_cover(epw_osc: pandas.Series,
     morphed_osc = morph_by_stretch(epw_osc,epw_dates,
                                    osc_alpha,factor)    
     morphed_osc[morphed_osc > 10] = 10    
-    return(round(morphed_osc,0))
+    rv = np.asarray(morphed_osc).astype(int)
+    return(np.round(rv,0))
 
 # ------------------------------------------------------
+
+def morph_liquid_precip_quantity(epw_pr: pandas.Series,
+                                 epw_dates: pandas.Series,
+                                 osc_alpha: list,
+                                 factor: str
+                                ):
+    morphed_pr = morph_by_stretch(epw_pr,epw_dates,
+                                  pr_alpha,factor)    
+    rv = np.asarray(morphed_pr).astype(int)
+    return(np.round(rv,0))
+
+# ------------------------------------------------------
+
 # Unlikely to be modified due to data contraints
 # def morph_wind_direction():
 # def morph_snow_depth():
@@ -317,10 +327,10 @@ def morph_opaque_sky_cover(epw_osc: pandas.Series,
 def generate_dry_bulb_temperature(epw_tas: pandas.Series,
                                   epw_dates: pandas.Series,
                                   lon: float, lat: float,
-                                  tasmax_present_gcm_files: list,
-                                  tasmax_future_gcm_files: list,
-                                  tasmin_present_gcm_files: list,
-                                  tasmin_future_gcm_files: list,
+                                  tasmax_present_climate_files: list,
+                                  tasmax_future_climate_files: list,
+                                  tasmin_present_climate_files: list,
+                                  tasmin_future_climate_files: list,
                                   present_range: range,
                                   future_range: range,
                                   factor: str
@@ -351,25 +361,25 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
     # Morphing factors from the input gcm files
     tasmax_present = get_ensemble_averages(cdfvariable='tasmax',
                                            lon=lon, lat=lat,
-                                           gcm_files=tasmax_present_gcm_files,
+                                           gcm_files=tasmax_present_climate_files,
                                            time_range=present_range,
                                            factor=factor)
     tasmax_future = get_ensemble_averages(cdfvariable='tasmax',
                                            lon=lon, lat=lat,
-                                           gcm_files=tasmax_future_gcm_files,
+                                           gcm_files=tasmax_future_climate_files,
                                            time_range=future_range,
                                            factor=factor)
     tasmax_delta = tasmax_future['mean'] - tasmax_present['mean']
     
     tasmin_present = get_ensemble_averages(cdfvariable='tasmin',
                                            lon=lon, lat=lat,
-                                           gcm_files=tasmin_present_gcm_files,
+                                           gcm_files=tasmin_present_climate_files,
                                            time_range=present_range,
                                            factor=factor)
 
     tasmin_future = get_ensemble_averages(cdfvariable='tasmin',
                                            lon=lon, lat=lat,
-                                           gcm_files=tasmin_future_gcm_files,
+                                           gcm_files=tasmin_future_climate_files,
                                            time_range=future_range,
                                            factor=factor)
     tasmin_delta = tasmin_future['mean'] - tasmin_present['mean']
@@ -389,12 +399,11 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
 def generate_dewpoint_temperature(epw_dwpt: pandas.Series,
                                   epw_dates: pandas.Series,
                                   lon: float, lat: float,
-                                  present_gcm_files: list,
-                                  future_gcm_files: list,
+                                  present_climate_files: list,
+                                  future_climate_files: list,
                                   present_range: range,
                                   future_range: range,
-                                  factor: str,
-                                  work_fxn,
+                                  factor: str
                                  ):
     """ generate_dewpoint_temperature(pandas.Series, pandas.Series,
                                       float,float,
@@ -408,31 +417,29 @@ def generate_dewpoint_temperature(epw_dwpt: pandas.Series,
             dates(Series): Dates from EPW file
             lon(float): The longitude to read data from climate files
             lat(float): The latitude to read data from climate files
-            present_gcm_files(list):
-            future_gcm_files(list):
+            present_climate_files(list):
+            future_climate_files(list):
             present_range(range): Year bounds for the present climate.
             future_range(range): Year bounds for the future climate.
             factor(str): Averaging factor
         Returns:
             a numpy array of future dewpoint temperature data.
     """
-
     dewpoint_present = get_ensemble_averages(cdfvariable='dewpoint',
                                              lon=lon, lat=lat,
-                                             gcm_files=present_gcm_files,
+                                             gcm_files=present_climate_files,
                                              time_range=present_range,
                                              factor=factor)
-
     dewpoint_future = get_ensemble_averages(cdfvariable='dewpoint',
                                              lon=lon, lat=lat,
-                                             gcm_files=future_gcm_files,
+                                             gcm_files=future_climate_files,
                                              time_range=future_range,
                                              factor=factor)
     dewpoint_delta = dewpoint_future['mean'] - dewpoint_present['mean']
     dewpoint_alpha = dewpoint_future['std'] / dewpoint_present['std']
     morphed_dwpt = morph_dewpoint_temperature(epw_dwpt,epw_dates,
-                                              np.mean(dewpoint_delta,axis=1),
-                                              np.mean(dewpoint_alpha,axis=1),
+                                              np.nanmean(dewpoint_delta,axis=1),
+                                              np.nanmean(dewpoint_alpha,axis=1),
                                               factor)    
     return morphed_dwpt
 # -----------------------------------------------------------------
@@ -441,8 +448,8 @@ def generate_horizontal_radiation(epw_ghr: pandas.Series,
                                   epw_dhr: pandas.Series,
                                   epw_dates: pandas.Series,
                                   lon: float, lat: float,
-                                  present_gcm_files: list,
-                                  future_gcm_files: list,
+                                  present_climate_files: list,
+                                  future_climate_files: list,
                                   present_range: range,
                                   future_range: range,
                                   factor: str
@@ -460,8 +467,8 @@ def generate_horizontal_radiation(epw_ghr: pandas.Series,
             dates(Series): Dates from EPW file
             lon(float): The longitude to read data from climate files
             lat(float): The latitude to read data from climate files
-            present_gcm_files(list): Uses RSDS 
-            future_gcm_files(list): RSDS 
+            present_climate_files(list): Uses RSDS 
+            future_climate_files(list): RSDS 
             present_range(range): Year bounds for the present climate.
             future_range(range): Year bounds for the future climate.
             factor(str): Averaging factor
@@ -471,18 +478,18 @@ def generate_horizontal_radiation(epw_ghr: pandas.Series,
 
     rsds_present = get_ensemble_averages(cdfvariable='rsds',
                                          lon=lon, lat=lat,
-                                         gcm_files=present_gcm_files,
+                                         gcm_files=present_climate_files,
                                          time_range=present_range,
                                          factor=factor)
 
     rsds_future = get_ensemble_averages(cdfvariable='rsds',
                                              lon=lon, lat=lat,
-                                             gcm_files=future_gcm_files,
+                                             gcm_files=future_climate_files,
                                              time_range=future_range,
                                              factor=factor)
     rsds_alpha = rsds_future['std'] / rsds_present['std']
     morphed_horiz_rad = morph_horizontal_radiation(epw_ghr,epw_dhr,epw_dates,
-                                                   np.mean(rsds_alpha,axis=1),
+                                                   np.nanmean(rsds_alpha,axis=1),
                                                    factor)
     return morphed_horiz_rad
 #----------------------------------------------------------------
@@ -491,12 +498,12 @@ def generate_stretched_series(epw_data: pandas.Series,
                               epw_dates: pandas.Series,
                               lon: float, lat: float,
                               cdfvariable: str,
-                              present_gcm_files: list,
-                              future_gcm_files: list,
+                              present_climate_files: list,
+                              future_climate_files: list,
                               present_range: range,
                               future_range: range,
-                              factor: str,
-                              morphing_function
+                              morphing_function,
+                              factor: str
                              ):
     """ generate_stretched_series(pandas.Series, pandas.Series,
                                float,float,str,
@@ -511,8 +518,8 @@ def generate_stretched_series(epw_data: pandas.Series,
             lon(float): The longitude to read data from climate files
             lat(float): The latitude to read data from climate files
             cdfvariable(str): Netcdf variable
-            present_gcm_files(list): 
-            future_gcm_files(list): 
+            present_climate_files(list): 
+            future_climate_files(list): 
             present_range(range): Year bounds for the present climate.
             future_range(range): Year bounds for the future climate.
             factor(str): Averaging factor
@@ -523,18 +530,18 @@ def generate_stretched_series(epw_data: pandas.Series,
 
     gcm_present = get_ensemble_averages(cdfvariable=cdfvariable,
                                         lon=lon, lat=lat,
-                                        gcm_files=present_gcm_files,
+                                        gcm_files=present_climate_files,
                                         time_range=present_range,
                                         factor=factor)
 
     gcm_future = get_ensemble_averages(cdfvariable=cdfvariable,
                                        lon=lon, lat=lat,
-                                       gcm_files=future_gcm_files,
+                                       gcm_files=future_climate_files,
                                        time_range=future_range,
                                        factor=factor)
     alpha = gcm_future['std'] / gcm_present['std']
     morphed_epw = morphing_function(epw_data,epw_dates,
-                                    np.mean(alpha,axis=1),
+                                    np.nanmean(alpha,axis=1),
                                     factor)
     return morphed_epw
 
@@ -562,8 +569,7 @@ def get_ensemble_averages(cdfvariable: str,
         Returns:
             a dict with two numpy arrays. One for each time interval of the year.
     """
-    # Leave options for monthly or daily averaging
-    # FIX: prefer not to hard code the aggregated time length
+    # Only options for monthly or daily averaging
     tlen = 0
     if factor == '%m':
         tlen = 12
@@ -576,8 +582,10 @@ def get_ensemble_averages(cdfvariable: str,
         with Dataset(gcm_file) as f:
             file_climate = get_climate_data(
                 f, lat, lon, cdfvariable, time_range,factor)
+
         mean_aggregate[:, i] = file_climate['mean'][:, 0]
         std_aggregate[:, i] = file_climate['std'][:, 0]
+
     ens_climatologies =  {'mean':mean_aggregate,
                           'std':std_aggregate}
     return ens_climatologies
@@ -590,7 +598,7 @@ def cftime_to_datetime(data_dates,calendar):
     ex_days = [date.strftime('%d') for date in data_dates]
     # Concatenate to full date
     ymd = [x+'-'+y+'-'+z for x,y,z in zip(ex_years,ex_months,ex_days)]
-    # FIX? Set irregular February dates to Feb 28
+    #Set irregular February dates to Feb 28 temporarily
     if (calendar=='360_day'):
         ymd = [re.sub('-02-29','-02-28',x) for x in ymd]
         ymd = [re.sub('-02-30','-02-28',x) for x in ymd]
@@ -699,39 +707,76 @@ def get_climate_data(nc: Dataset,
     data_clim = {'mean':time_mean, 'std':time_std}
     return data_clim
 
+#----------------------------------------------------------------
+#----------------------------------------------------------------
 
-def gen_future_weather_file(epw_filename: str,
-                            epw_output_filename: str,
+def check_epw_variable_name(epw_variable_name: str):
+    from .epw import field_names
+    if epw_variable_name not in field_names:
+        print(epw_variable_name+' is not an EPW variable.')
+        raise SystemExit
+    else:
+        print(epw_variable_name+' is an EPW variable')
+
+def check_epw_inputs(epw_filename: str,                     
+                     lon: float, lat: float,
+                     epw_output_filename: str):
+
+    if epw_filename == None and (lon == None or lat == None):
+        print('No EPW inputs have been provided.')
+        print('Either an EPW file or lon/lat coordinates are required.')
+        raise SystemExit
+
+    if epw_filename != None and (lon != None or lat != None):
+        print('Both and EPW File and location coordinates included.')
+        print('Only the EPW file location will be used for morphing.')
+
+    if 'epw' not in epw_output_filename:
+        print('Output file must be an EPW file')
+        raise SystemExit
+    
+def gen_future_weather_file(epw_output_filename: str,
+                            epw_variable_name: str,
                             present_range: range,
                             future_range: range,
-                            gcms: list
-                            ):
-    """ gen_future_weather_file(float, float, range, range, str)
+                            present_climate_files: list,
+                            future_climate_files: list,
+                            factor: str,
+                            epw_filename=None,
+                            lon=None, lat=None):
+    """ gen_future_weather_file(str, float, float, str, str, range, range, list, list)
 
         Regenerates the passed epw file into a weather file represeting future
         data.
 
         Args:
-            epw_filename(str): The path to the epw file to regenerate.
-
+            epw_filename(str): The path to the epw file to regenerate. If not provided
+                               lon and lat coordinates must be provided.
+            lon (float): EPW Location coordinate
+            lat (float): EPW Location coordinate
             epw_output_filename(str): The path to the future epw file to create
-
             present_range(range): The range of years that makes up "present"
                           for this particular run.
-
             future_range(range): The range of years that makes up "future" for
                          this particular run.
             gcm(list): Names of the GCMs to use for simulated values.
     """
 
-    # Get the coordinates from the weather file
-    epw_coords = get_epw_coordinates(epw_filename)
-    lon = epw_coords[0]
-    lat = epw_coords[1]
-    print("Longitude: ")
-    print(lon)
-    print("Latitude: ")
-    print(lat)
+    # Confirm the supplied inputs are correct 
+    check_epw_inputs(epw_filename,lon,lat,
+                     epw_output_filename)
+
+    # Confirm Accurate variable name
+    check_epw_variable_name(epw_variable_name)
+
+    # Confirm correct GCM files supplied given variable name
+    
+    if epw_filename != None:
+        # Get the coordinates from the weather file
+        epw_coords = get_epw_coordinates(epw_filename)
+        lon = epw_coords[0]
+        lat = epw_coords[1]
+
     # Get the present and future climate data.
 
     # Get the data from epw file and the headers from the epw.
@@ -740,27 +785,100 @@ def gen_future_weather_file(epw_filename: str,
         headers = get_epw_header(epw_file)
 
     # Morph columns of EPW dataframe based on selected options
-    epw_dbt_morph = morph_dry_bulb_temperature(
-        epw_data, lon, lat, gcms, present_range, future_range)
+    #----------------------------------------------------------
+    # Dry Bulb Temperature
+    if epw_variable_name == 'dry_bulb_temperature':
+        #Separate Tasmax and Tasmin files from the inputs
+        tx_ix = np.array([i for i,gcm in enumerate(present_climate_files) if 'tasmax' in gcm])
+        tasmax_present_climate_files = np.array(present_climate_files)[tx_ix]
+        tn_ix = np.array([i for i,gcm in enumerate(present_climate_files) if 'tasmin' in gcm])
+        tasmin_present_climate_files = np.array(present_climate_files)[tn_ix]
+        tx_ix = np.array([i for i,gcm in enumerate(future_climate_files) if 'tasmax' in gcm])
+        tasmax_future_climate_files = np.array(future_climate_files)[tx_ix]
+        tn_ix = np.array([i for i,gcm in enumerate(future_climate_files) if 'tasmin' in gcm])
+        tasmin_future_climate_files = np.array(future_climate_files)[tn_ix]
 
-    print('Dewpoint')
-    epw_dpt_morph = morph_dewpoint_temperature(
-        epw_dbt_morph, lon, lat, gcms, present_range, future_range)
-    print('Relative Humidity')
-    epw_rhs_morph = stretch_gcm_variable(
-        epw_dpt_morph, lon, lat, "relative_humidity", "rhs", gcms, present_range, future_range)
-    print('Air Pressure')
-    epw_psl_morph = stretch_gcm_variable(
-        epw_rhs_morph, lon, lat, "atmospheric_station_pressure", "psl", gcms, present_range, future_range)
-    print('Windspeed')
-    epw_wspd_morph = stretch_gcm_variable(
-        epw_psl_morph, lon, lat, "wind_speed", "wspd", gcms, present_range, future_range)
-    print('Radiation and Sky Cover')
-    epw_rad_morph = morph_radiation(
-        epw_wspd_morph, lon, lat, gcms, present_range, future_range)
+        epw_dbt_morph = generate_dry_bulb_temperature(epw_data[epw_variable_name],
+                                                      epw_data['datetime'],
+                                                      lon,lat,
+                                                      tasmax_present_climate_files,
+                                                      tasmax_future_climate_files,
+                                                      tasmin_present_climate_files,
+                                                      tasmin_future_climate_files,
+                                                      present_range,future_range,
+                                                      factor)
+        epw_data[epw_variable_name] = epw_dbt_morph
+        write_epw_data(epw_data, headers, epw_output_filename)  
+        return(epw_dbt_morph)
+    #----------------------------------------------------------
+    # Dewpoint Temperature
+    if epw_variable_name == 'dew_point_temperature':
+        print('Dewpoint')
+        epw_dwpt_morph = generate_dewpoint_temperature(epw_data[epw_variable_name],
+                                                       epw_data['datetime'],
+                                                       lon,lat,
+                                                       present_climate_files,
+                                                       future_climate_files,
+                                                       present_range,future_range,
+                                                       factor)
+        epw_data[epw_variable_name] = epw_dwpt_morph
+        write_epw_data(epw_data, headers, epw_output_filename)  
+        return(epw_dwpt_morph)
+    #----------------------------------------------------------
+    # Horizontal Radiation
+    if epw_variable_name == 'global_horizontal_radiation':
+        print('Both Horizontal Radiation Series')
+        epw_hr_morph = generate_horizontal_radiation(epw_data['global_horizontal_radiation'],
+                                                     epw_data['diffuse_horizontal_radiation'],
+                                                     epw_data['datetime'],
+                                                     lon,lat,
+                                                     present_climate_files,
+                                                     future_climate_files,
+                                                     present_range,future_range,
+                                                     factor)
+        epw_data['global_horizontal_radiation'] = epw_hr_morph[:,0]
+        epw_data['diffuse_horizontal_radiation'] = epw_hr_morph[:,1]
+        write_epw_data(epw_data, headers, epw_output_filename)  
+        return(epw_hr_morph)  
+    #----------------------------------------------------------
+    # Variables Morphed by stretch only
+    stretch_variables = ['direct_normal_radiation','atmospheric_station_pressure',
+                         'relative_humidity','windspeed',
+                         'total_sky_cover','opaque_sky_cover','liquid_precipitation_quantity']
+    if epw_variable_name in stretch_variables:
+        cdf_vars = {'direct_normal_radiation': 'clt', 
+                    'atmospheric_station_pressure': 'psl',
+                    'relative_humidity': 'rhs',
+                    'windspeed': 'wspd',
+                    'total_sky_cover': 'clt',
+                    'opaque_sky_cover': 'clt',
+                    'liquid_precipitation_quantity': 'pr'}
+
+        morphing_functions = {'direct_normal_radiation': morph_direct_normal_radiation, 
+                              'atmospheric_station_pressure': morph_atmospheric_station_pressure,
+                              'relative_humidity': morph_relative_humidity,
+                              'windspeed': morph_windspeed,
+                              'total_sky_cover': morph_total_sky_cover,
+                              'opaque_sky_cover': morph_opaque_sky_cover,
+                              'liquid_precipitation_quantity': morph_liquid_precip_quantity}
+
+        cdfvariable = cdf_vars.get(epw_variable_name,'Missing EPW Variable')
+        morphing_function = morphing_functions.get(epw_variable_name,'Missing EPW Variable')
+        epw_var_morph = generate_stretched_series(epw_data[epw_variable_name],
+                                                  epw_data['datetime'],
+                                                  lon,lat,
+                                                  cdfvariable,
+                                                  present_climate_files,
+                                                  future_climate_files,
+                                                  present_range,future_range,
+                                                  morphing_function,
+                                                  factor)
+        epw_data[epw_variable_name] = epw_var_morph
+        write_epw_data(epw_data, headers, epw_output_filename)  
+        return(epw_var_morph)  
 
     # Write the data out to the epw file.
-    write_epw_data(epw_rad_morph, headers, epw_output_filename)
+    # write_epw_data(epw_rad_morph, headers, epw_output_filename)  
     return(epw_output_filename)
 
 
