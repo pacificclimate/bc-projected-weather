@@ -10,8 +10,6 @@ import glob
 
 from .epw import epw_to_data_frame
 
-
-
 #-----------------------------------
 # Core Morphing Functions
 
@@ -761,7 +759,6 @@ def gen_future_weather_file(epw_output_filename: str,
                          this particular run.
             gcm(list): Names of the GCMs to use for simulated values.
     """
-
     # Confirm the supplied inputs are correct 
     check_epw_inputs(epw_filename,lon,lat,
                      epw_output_filename)
@@ -772,10 +769,13 @@ def gen_future_weather_file(epw_output_filename: str,
     # Confirm correct GCM files supplied given variable name
     
     if epw_filename != None:
+        if lon != 0 and lat != 0:
+            print('EPW File and Lon/Lat coordinates provided.')
+            print('Only the EPW file coordinates will be used.')                   
         # Get the coordinates from the weather file
         epw_coords = get_epw_coordinates(epw_filename)
         lon = epw_coords[0]
-        lat = epw_coords[1]
+        lat = epw_coords[1]        
 
     # Get the present and future climate data.
 
@@ -788,16 +788,22 @@ def gen_future_weather_file(epw_output_filename: str,
     #----------------------------------------------------------
     # Dry Bulb Temperature
     if epw_variable_name == 'dry_bulb_temperature':
+        print(present_climate_files)
+        print('ALL')
         #Separate Tasmax and Tasmin files from the inputs
         tx_ix = np.array([i for i,gcm in enumerate(present_climate_files) if 'tasmax' in gcm])
-        tasmax_present_climate_files = np.array(present_climate_files)[tx_ix]
+        print(tx_ix.astype(int))
+        tasmax_present_climate_files = np.array(present_climate_files)[tx_ix.astype(int)]
+        print(tasmax_present_climate_files)
         tn_ix = np.array([i for i,gcm in enumerate(present_climate_files) if 'tasmin' in gcm])
         tasmin_present_climate_files = np.array(present_climate_files)[tn_ix]
         tx_ix = np.array([i for i,gcm in enumerate(future_climate_files) if 'tasmax' in gcm])
         tasmax_future_climate_files = np.array(future_climate_files)[tx_ix]
         tn_ix = np.array([i for i,gcm in enumerate(future_climate_files) if 'tasmin' in gcm])
         tasmin_future_climate_files = np.array(future_climate_files)[tn_ix]
-
+        print('TX PRESENT')
+        print(tasmax_present_climate_files)
+    
         epw_dbt_morph = generate_dry_bulb_temperature(epw_data[epw_variable_name],
                                                       epw_data['datetime'],
                                                       lon,lat,

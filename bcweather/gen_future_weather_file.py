@@ -21,7 +21,7 @@
 
 from argparse import ArgumentParser
 
-#from bcweather import gen_future_weather_file
+from bcweather import gen_future_weather_file
 
 if __name__ == "__main__":
 
@@ -40,25 +40,25 @@ if __name__ == "__main__":
                         help="Ending year of the present climate period")
     parser.add_argument('future_start', type=int, default=2041,
                         help="Starting year of the future climate period")
-    parser.add_argument('present_end', type=int, default=2070,
+    parser.add_argument('future_end', type=int, default=2070,
                         help="Ending year of the future climate period")
-    parser.add_argument('present_climate_files', type=list,
+    parser.add_argument('present_climate_files',
                         default="climate_files/tasmin_gcm_prism_BCCAQ_"
                         "CNRM-CM5_rcp85_r1i1p1_1951-2000.nc",
                         help="NetCDF files containing the present climate data")
-    parser.add_argument('future_climate_files', type=list,
+    parser.add_argument('future_climate_files',
                         default="climate_files/tasmin_gcm_prism_BCCAQ_"
                         "CNRM-CM5_rcp85_r1i1p1_2001-2100.nc",
                         help="NetCDF files containing the future climate data")
     parser.add_argument('factor', type=str,
                         default="%m",
                         help="Factor with which to average (daily or monthly")
-    parser.add_argument('-epwf','--epw_filename', type=str,
+    parser.add_argument('epw_filename', type=str,
                         default=None,
                         help="Input weather file for present climate")
-    parser.add_argument('-lon','--longitude', type=float, default=None,
+    parser.add_argument('lon', type=float, default=0,
                         help="Longitude at which to generate a weather file")
-    parser.add_argument('-lat','--latitude', type=float, default=None,
+    parser.add_argument('lat', type=float, default=0,
                         help="Latitude at which to generate a weather file")
 
 
@@ -73,6 +73,6 @@ if __name__ == "__main__":
         args.future_climate_files,
         args.factor,
         args.epw_filename,
-        args.lat,
-        args.lon
+        args.lon,
+        args.lat
         )
