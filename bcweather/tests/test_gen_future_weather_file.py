@@ -2,6 +2,7 @@ import io
 import numpy
 import pandas
 import glob
+from pkg_resources import resource_filename
 
 from bcweather import get_epw_header, get_ensemble_averages
 from bcweather import get_epw_summary_values, format_netcdf_series
@@ -87,7 +88,7 @@ def test_get_epw_summary_values(epwfile):
 
 
 def test_gen_prism_offset_weather_file():
-    gen_prism_offset_weather_file(49.2, -123.2)
+    gen_prism_offset_weather_file(49.2, -123.2, resource_filename('bcweather', 'tests/data'))
     assert 1 == 1
 
 

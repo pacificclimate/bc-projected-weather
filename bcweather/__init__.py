@@ -1105,19 +1105,19 @@ def list_of_epw_coordinates(files):
     return(coords)
 
 
-def find_closest_epw_file(coords):
-    """ find_closest_epw_file(coords)
+def find_closest_epw_file(coords, wx_dir):
+    """ find_closest_epw_file(coords, wx_dir)
         Loops through all epw files in the weather file directory,
         produces a list of coordinates for all available files and
         finds the file nearest to the coords.
         Args:
             coords(float,float): The longitude and latitude to
-            compare with the weather files.
+                                 compare with the weather files.
+            wx_dir(str): A directory containing all of the weather
+                         files
     """
     print(coords)
-    # FIXME with non-hard coded location
-    read_dir = "/storage/data/projects/rci/weather_files/wx_files/"
-    files = glob.glob(read_dir+'*.epw')
+    files = glob.glob(wx_dir+'/*.epw')
 
     coord_data = list_of_epw_coordinates(files)
     wx_index = np.sum(np.square(coord_data-coords), axis=1).argmin()
@@ -1204,8 +1204,9 @@ def adjust_epw_with_prism(epw_data, prism_diff):
 
 def gen_prism_offset_weather_file(lat: float,
                                   lon: float,
+                                  wx_dir: str,
                                   ):
-    """gen_prism_offset_file(float, float)
+    """gen_prism_offset_file(float, float, str)
 
         Generates an epw file based on a provided location by finding
         the nearest weather file to the supplied coordinates and
@@ -1217,11 +1218,13 @@ def gen_prism_offset_weather_file(lat: float,
 
             lon(float): The logitude to read data from the climate files.
 
+            wx_dir(str): A directory containing weather files
+
     """
 
     coords = (lon, lat)
     # Search through all weather files for the closest to the coords
-    epw_closest = find_closest_epw_file(coords)
+    epw_closest = find_closest_epw_file(coords, wx_dir)
 
     # Return the coordinates of the closest epw file
     epw_closest_coords = get_epw_coordinates(epw_closest)
