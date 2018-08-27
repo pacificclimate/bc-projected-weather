@@ -1,8 +1,5 @@
-import datetime
 import glob
 import numpy as np
-import netcdf
-from netCDF4 import Dataset
 import netCDF4 as cdf
 import pandas as pd
 from StringIO import StringIO
@@ -34,7 +31,8 @@ def find_closest_wx_file(coords):
 
 
 def ncfile(varname):
-    fname = '/home/ssobie/Desktop/weather_files/PRISM/' + varname + '_lm_subset.nc'
+    fname = '/home/ssobie/Desktop/weather_files/PRISM/' \
+            + varname + '_lm_subset.nc'
     dst = cdf.Dataset(fname, 'r')
     return dst
 
@@ -56,18 +54,34 @@ def prism_read(nc, cells, varname):
 def wx_epw_read(filename):
     field_names = (
         'year', 'month', 'day', 'hour', 'minute',
-        'data_source_and_uncertainty_flags', 'dry_bulb_temperature',
-        'dew_point_temperature', 'relative_humidity',
-        'atmospheric_station_pressure', 'extraterrestrial_horizontal_radiation',
+        'data_source_and_uncertainty_flags',
+        'dry_bulb_temperature',
+        'dew_point_temperature',
+        'relative_humidity',
+        'atmospheric_station_pressure',
+        'extraterrestrial_horizontal_radiation',
         'extraterrestrial_direct_normal_radition',
-        'horizontal_infrared_radiation_intensity', 'global_horizontal_radiation',
-        'direct_normal_radiation', 'diffuse_horizontal_radiation',
-        'global_horizontal_illuminance', 'direct_normal_illuminance',
-        'diffuse_horizontal_illuminance', 'zenith_luminance', 'wind_direction',
-        'wind_speed', 'total_sky_cover', 'opaque_sky_cover', 'visibility',
-        'ceiling_height', 'present_weather_observation', 'present_weather_codes',
-        'precipitable_water', 'aerosol_optical_depth', 'snow_depth',
-        'days_since_last_snowfall', 'albedo', 'liquid_precipitation_depth',
+        'horizontal_infrared_radiation_intensity',
+        'global_horizontal_radiation',
+        'direct_normal_radiation',
+        'diffuse_horizontal_radiation',
+        'global_horizontal_illuminance',
+        'direct_normal_illuminance',
+        'diffuse_horizontal_illuminance',
+        'zenith_luminance', 'wind_direction',
+        'wind_speed',
+        'total_sky_cover',
+        'opaque_sky_cover',
+        'visibility',
+        'ceiling_height',
+        'present_weather_observation',
+        'present_weather_codes',
+        'precipitable_water',
+        'aerosol_optical_depth',
+        'snow_depth',
+        'days_since_last_snowfall',
+        'albedo',
+        'liquid_precipitation_depth',
         'liquid_precipitation_quantity'
     )
     missing_values = (99, 99.9, 999, 9999, 99999, 999999)
@@ -89,20 +103,11 @@ def prism_tas(nc, cells):
 
 
 def adjust_wx_with_prism(wx_data, prism_diff):
-    wx_months = wx_data[['month']]
     months = range(1, 13)
     for mn in months:
         wx_data.dry_bulb_temperature[wx_data.month ==
                                      mn] += round(prism_diff[mn-1], 1)
     return(wx_data)
-
-
-def get_epw_header(epw_file):
-    pos = epw_file.tell()  # Save the current position
-    epw_file.seek(0)
-    rv = ''.join([epw_file.readline() for _ in range(8)])
-    epw_file.seek(pos)  # Reset the stream position
-    return(rv)
 
 
 def write_epw_data(data, headers, filename):
@@ -185,7 +190,13 @@ def prism_closest():
 
 def get_epw_header(epw_file):
     # type: (IO) -> str
-    """get_epw_header(IO)                                                                                                                                        Extracts the header from an epw file and returns it.                                                                                                       Args:                                                                                                                                                         epw_file(IO): An open epw file                                                                                                                        Returns: (str): A string consisting of the header, usually the                                                                                                first 8 rows of the file                                                                                                                          """
+    """get_epw_header(IO)
+    Extracts the header from an epw file and returns it.
+    Args:
+    epw_file(IO): An open epw file
+    Returns: (str): A string consisting of the header,
+    usually the first 8 rows of the file
+    """
     pos = epw_file.tell()  # Save the current position
     epw_file.seek(0)
     rv = ''.join([epw_file.readline() for _ in range(8)])

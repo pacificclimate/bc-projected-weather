@@ -27,32 +27,38 @@ if __name__ == "__main__":
 
     parser = ArgumentParser()
 
-    parser.add_argument('--epw_output_filename', type=str,required=True,
+    parser.add_argument('--epw_output_filename', type=str, required=True,
                         default="weather_files/"
                         "CAN_BC_KELOWNA_1123939_CWEC_future.epw",
                         help="Output weather file for future climate")
-    parser.add_argument('--epw_variable_name', type=str,required=True,
+    parser.add_argument('--epw_variable_name', type=str, required=True,
                         default='dry_bulb_temperature',
                         help="EPW variable name to morph")
     parser.add_argument('--present_start', type=int, default=1971,
                         help="Starting year of the present climate period")
-    parser.add_argument('--present_end', type=int, default=2000,required=True,
+    parser.add_argument('--present_end', type=int, default=2000,
+                        required=True,
                         help="Ending year of the present climate period")
-    parser.add_argument('--future_start', type=int, default=2041,required=True,
+    parser.add_argument('--future_start', type=int, default=2041,
+                        required=True,
                         help="Starting year of the future climate period")
-    parser.add_argument('--future_end', type=int, default=2070,required=True,
+    parser.add_argument('--future_end', type=int, default=2070,
+                        required=True,
                         help="Ending year of the future climate period")
-    parser.add_argument('--present_climate_files',action='append',required=True,
-                        help="NetCDF files containing the present climate data")
-    parser.add_argument('--future_climate_files',action='append',required=True,
+    parser.add_argument('--present_climate_files', action='append',
+                        required=True,
+                        help="NetCDF files containing \
+                        the present climate data")
+    parser.add_argument('--future_climate_files', action='append',
+                        required=True,
                         help="NetCDF files containing the future climate data")
-    parser.add_argument('--factor', choices=['monthly','daily'],required=True,
-                        default="monthly",
+    parser.add_argument('--factor', choices=['monthly', 'daily'],
+                        required=True, default="monthly",
                         help="Factor with which to average (daily or monthly")
     parser.add_argument('--epw_filename', type=str,
                         default=None,
                         help="Input weather file for present climate")
-    parser.add_argument('--lon', type=float,default=None,
+    parser.add_argument('--lon', type=float, default=None,
                         help="Longitude at which to generate a weather file")
     parser.add_argument('--lat', type=float, default=None,
                         help="Latitude at which to generate a weather file")
