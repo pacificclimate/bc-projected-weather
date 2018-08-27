@@ -385,29 +385,37 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
             a list with future dry bulb temperature data.
     """
     # Morphing factors from the input gcm files
-    tasmax_present = get_ensemble_averages(cdfvariable='tasmax',
-                                           lon=lon, lat=lat,
-                                           gcm_files=tasmax_present_climate_files,
-                                           time_range=present_range,
-                                           factor=factor)
-    tasmax_future = get_ensemble_averages(cdfvariable='tasmax',
-                                          lon=lon, lat=lat,
-                                          gcm_files=tasmax_future_climate_files,
-                                          time_range=future_range,
-                                          factor=factor)
+    tasmax_present = get_ensemble_averages(
+        cdfvariable='tasmax',
+        lon=lon, lat=lat,
+        gcm_files=tasmax_present_climate_files,
+        time_range=present_range,
+        factor=factor
+    )
+    tasmax_future = get_ensemble_averages(
+        cdfvariable='tasmax',
+        lon=lon, lat=lat,
+        gcm_files=tasmax_future_climate_files,
+        time_range=future_range,
+        factor=factor
+    )
     tasmax_delta = tasmax_future['mean'] - tasmax_present['mean']
 
-    tasmin_present = get_ensemble_averages(cdfvariable='tasmin',
-                                           lon=lon, lat=lat,
-                                           gcm_files=tasmin_present_climate_files,
-                                           time_range=present_range,
-                                           factor=factor)
+    tasmin_present = get_ensemble_averages(
+        cdfvariable='tasmin',
+        lon=lon, lat=lat,
+        gcm_files=tasmin_present_climate_files,
+        time_range=present_range,
+        factor=factor
+    )
 
-    tasmin_future = get_ensemble_averages(cdfvariable='tasmin',
-                                          lon=lon, lat=lat,
-                                          gcm_files=tasmin_future_climate_files,
-                                          time_range=future_range,
-                                          factor=factor)
+    tasmin_future = get_ensemble_averages(
+        cdfvariable='tasmin',
+        lon=lon, lat=lat,
+        gcm_files=tasmin_future_climate_files,
+        time_range=future_range,
+        factor=factor
+    )
     tasmin_delta = tasmin_future['mean'] - tasmin_present['mean']
 
     # One could also to use change in variability instead of change
@@ -855,15 +863,17 @@ def gen_future_weather_file(epw_output_filename: str,
             future_climate_files) if 'tasmin' in gcm])
         tasmin_future_climate_files = np.array(future_climate_files)[tn_ix]
 
-        epw_dbt_morph = generate_dry_bulb_temperature(epw_data[epw_variable_name],
-                                                      epw_data['datetime'],
-                                                      lon, lat,
-                                                      tasmax_present_climate_files,
-                                                      tasmax_future_climate_files,
-                                                      tasmin_present_climate_files,
-                                                      tasmin_future_climate_files,
-                                                      present_range, future_range,
-                                                      factor)
+        epw_dbt_morph = generate_dry_bulb_temperature(
+            epw_data[epw_variable_name],
+            epw_data['datetime'],
+            lon, lat,
+            tasmax_present_climate_files,
+            tasmax_future_climate_files,
+            tasmin_present_climate_files,
+            tasmin_future_climate_files,
+            present_range, future_range,
+            factor
+        )
         epw_data[epw_variable_name] = epw_dbt_morph
         write_epw_data(epw_data, headers, epw_output_filename)
         print('Successfully morphed dry bulb temperature')
@@ -872,14 +882,16 @@ def gen_future_weather_file(epw_output_filename: str,
     # Dewpoint Temperature
     if epw_variable_name == 'dew_point_temperature':
         print('Dewpoint')
-        epw_dwpt_morph = generate_dewpoint_temperature(epw_data[epw_variable_name],
-                                                       epw_data['datetime'],
-                                                       lon, lat,
-                                                       present_climate_files,
-                                                       future_climate_files,
-                                                       present_range,
-                                                       future_range,
-                                                       factor)
+        epw_dwpt_morph = generate_dewpoint_temperature(
+            epw_data[epw_variable_name],
+            epw_data['datetime'],
+            lon, lat,
+            present_climate_files,
+            future_climate_files,
+            present_range,
+            future_range,
+            factor
+        )
         epw_data[epw_variable_name] = epw_dwpt_morph
         write_epw_data(epw_data, headers, epw_output_filename)
         print('Successfully morphed dewpoint temperature')
@@ -889,15 +901,17 @@ def gen_future_weather_file(epw_output_filename: str,
     if epw_variable_name == 'global_horizontal_radiation' or \
        epw_variable_name == 'diffuse_horizontail_radiation':
         print('Both Global and Diffuse Horizontal Radiation Series')
-        epw_hr_morph = generate_horizontal_radiation(epw_data['global_horizontal_radiation'],
-                                                     epw_data['diffuse_horizontal_radiation'],
-                                                     epw_data['datetime'],
-                                                     lon, lat,
-                                                     present_climate_files,
-                                                     future_climate_files,
-                                                     present_range,
-                                                     future_range,
-                                                     factor)
+        epw_hr_morph = generate_horizontal_radiation(
+            epw_data['global_horizontal_radiation'],
+            epw_data['diffuse_horizontal_radiation'],
+            epw_data['datetime'],
+            lon, lat,
+            present_climate_files,
+            future_climate_files,
+            present_range,
+            future_range,
+            factor
+        )
         epw_data['global_horizontal_radiation'] = epw_hr_morph[:, 0]
         epw_data['diffuse_horizontal_radiation'] = epw_hr_morph[:, 1]
         write_epw_data(epw_data, headers, epw_output_filename)
@@ -922,13 +936,15 @@ def gen_future_weather_file(epw_output_filename: str,
                     'opaque_sky_cover': 'clt',
                     'liquid_precipitation_quantity': 'pr'}
 
-        morphing_functions = {'direct_normal_radiation': morph_direct_normal_radiation,
-                              'atmospheric_station_pressure': morph_atmospheric_station_pressure,
-                              'relative_humidity': morph_relative_humidity,
-                              'wind_speed': morph_wind_speed,
-                              'total_sky_cover': morph_total_sky_cover,
-                              'opaque_sky_cover': morph_opaque_sky_cover,
-                              'liquid_precipitation_quantity': morph_liquid_precip_quantity}
+        morphing_functions = {
+            'direct_normal_radiation': morph_direct_normal_radiation,
+            'atmospheric_station_pressure': morph_atmospheric_station_pressure,
+            'relative_humidity': morph_relative_humidity,
+            'wind_speed': morph_wind_speed,
+            'total_sky_cover': morph_total_sky_cover,
+            'opaque_sky_cover': morph_opaque_sky_cover,
+            'liquid_precipitation_quantity': morph_liquid_precip_quantity
+        }
 
         cdfvariable = cdf_vars.get(epw_variable_name, 'Missing EPW Variable')
         morphing_function = morphing_functions.get(
@@ -1189,16 +1205,18 @@ def adjust_epw_with_prism(epw_data, prism_diff):
 def gen_prism_offset_weather_file(lat: float,
                                   lon: float,
                                   ):
-    """ gen_prism_offset_file(float, float)
+    """gen_prism_offset_file(float, float)
 
-        Generates an epw file based on a provided location by finding the nearest
-        weather file to the supplied coordinates and applying an offset to
-        the temperature series based on PRISM climatologies (1981-2010 for now).
+        Generates an epw file based on a provided location by finding
+        the nearest weather file to the supplied coordinates and
+        applying an offset to the temperature series based on PRISM
+        climatologies (1981-2010 for now).
 
         Args:
             lat(float): The latitude to read data from climate files.
 
             lon(float): The logitude to read data from the climate files.
+
     """
 
     coords = (lon, lat)
@@ -1232,5 +1250,6 @@ def gen_prism_offset_weather_file(lat: float,
     epw_offset = adjust_epw_with_prism(epw_data, prism_diff)
     print(epw_offset.shape)
     # Write the data out to the epw file.
-    epw_output_filename = "/storage/data/projects/rci/weather_files/wx_files/TEST.epw"
+    epw_output_filename = "/storage/data/projects/rci/weather_files/wx_files/"\
+                          "TEST.epw"
     write_epw_data(epw_offset, headers, epw_output_filename)
