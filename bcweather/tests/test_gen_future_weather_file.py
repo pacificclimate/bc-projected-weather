@@ -88,7 +88,8 @@ def test_get_epw_summary_values(epwfile):
 
 
 def test_gen_prism_offset_weather_file():
-    gen_prism_offset_weather_file(49.2, -123.2, resource_filename('bcweather', 'tests/data'))
+    data_dir = resource_filename('bcweather', 'tests/data')
+    gen_prism_offset_weather_file(49.2, -123.2, data_dir, data_dir)
     assert 1 == 1
 
 

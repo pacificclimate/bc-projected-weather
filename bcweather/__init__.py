@@ -1,3 +1,4 @@
+import os
 from datetime import datetime
 import re
 
@@ -1125,15 +1126,14 @@ def find_closest_epw_file(coords, wx_dir):
     return(wx_selected)
 
 
-def prism_ncfile(varname):
+def prism_ncfile(varname,
+                 ncdir='/storage/data/projects/rci/weather_files/PRISM/'):
     """ prism_ncfile(varname)
         Returns an opened netcdf object for a PRISM climatology file.
         Args:
             varname(str): Variable name
     """
-    # FIXME with non-hard coded location
-    fname = '/storage/data/projects/rci/weather_files/PRISM/' + varname \
-            + '_lm_subset.nc'
+    fname = os.path.join(ncdir, '{}_lm_subset.nc'.format(varname))
     dst = cdf.Dataset(fname, 'r')
     return dst
 
@@ -1167,7 +1167,7 @@ def prism_read(nc, cells, varname):
     return(data[0:12, ])  # 13 entries, do not need the annual climatology (13)
 
 
-def prism_tas(nc, cells):
+def prism_tas(nc, cells, prism_dir):
     """ prism_tas(nc, cells, varname)
         Returns the monthly mean temperature PRISM climatologies
         from the PRISM netcdf file for the provided cell indices.
@@ -1175,9 +1175,9 @@ def prism_tas(nc, cells):
             nc (Open PRISM netcdf object)
             cells(int,int): PRISM cell indices
     """
-    ncx = prism_ncfile('tmax')
+    ncx = prism_ncfile('tmax', prism_dir)
     tmax = prism_read(ncx, cells, 'tmax')
-    ncn = prism_ncfile('tmin')
+    ncn = prism_ncfile('tmin', prism_dir)
     tmin = prism_read(ncn, cells, 'tmin')
     tas = np.divide(tmax + tmin, 2.0)
     return(tas)
@@ -1205,8 +1205,9 @@ def adjust_epw_with_prism(epw_data, prism_diff):
 def gen_prism_offset_weather_file(lat: float,
                                   lon: float,
                                   wx_dir: str,
+                                  prism_dir: str,
                                   ):
-    """gen_prism_offset_file(float, float, str)
+    """gen_prism_offset_file(float, float, str, str)
 
         Generates an epw file based on a provided location by finding
         the nearest weather file to the supplied coordinates and
@@ -1220,6 +1221,8 @@ def gen_prism_offset_weather_file(lat: float,
 
             wx_dir(str): A directory containing weather files
 
+            prism_dir(str): A directory containing PRISM NetCDF files
+
     """
 
     coords = (lon, lat)
@@ -1230,17 +1233,17 @@ def gen_prism_offset_weather_file(lat: float,
     epw_closest_coords = get_epw_coordinates(epw_closest)
     print(epw_closest_coords)
     # Any PRISM climatology file to grab coordinates
-    nc = prism_ncfile('tmax')
+    nc = prism_ncfile('tmax', prism_dir)
 
     print('Closest PRISM cell to supplied coords')
     prism_cell = get_prism_indices(nc, coords)
     print(prism_cell)
-    prism_loc_tas = prism_tas(nc, prism_cell)
+    prism_loc_tas = prism_tas(nc, prism_cell, prism_dir)
 
     print('PRISM coords of cell closest to EPW File')
     epw_cell = get_prism_indices(nc, epw_closest_coords)
     print(epw_cell)
-    prism_epw_tas = prism_tas(nc, epw_cell)
+    prism_epw_tas = prism_tas(nc, epw_cell, prism_dir)
 
     prism_diff = prism_loc_tas - prism_epw_tas
     print(prism_diff)
