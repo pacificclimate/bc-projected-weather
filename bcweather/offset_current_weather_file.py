@@ -26,6 +26,10 @@ if __name__ == "__main__":
     parser.add_argument('--read_dir', type=str, required=True,
                         default="/storage/data/projects/rci/weather_files/wx_files/",                         
                         help="Location of the original weather files")
+    parser.add_argument('--write_dir', type=str, required=True,
+                        default="/storage/data/projects/rci/weather_files/wx_files/" \
+                        + "morphed_files/TEST/",
+                        help="Location of the original weather files")
 
     args = parser.parse_args()
 
@@ -33,5 +37,6 @@ if __name__ == "__main__":
         args.lon,
         args.lat,
         args.location_name,
-        args.read_dir
+        args.read_dir,
+        args.write_dir
         )

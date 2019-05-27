@@ -775,33 +775,36 @@ def check_epw_variable_name(epw_variable_name: str):
         print(epw_variable_name+' is an EPW variable')
 
 
-def check_epw_inputs(epw_filename: str,
-                     lon: float, lat: float,
-                     epw_output_filename: str):
+def check_epw_inputs(location_name: str,
+                     epw_read: str, epw_write: str,
+                     lon: float, lat: float) :
 
-    if epw_filename is None and (lon is None or lat is None):
-        print('No EPW inputs have been provided.')
-        print('Either an EPW file or lon/lat coordinates are required.')
+    if lon is None or lat is None:
+        print('Both longitude and latitude coordinates are required.')
         raise SystemExit
 
-    if epw_filename is not None and (lon is not None or lat is not None):
-        print('Both and EPW File and location coordinates included.')
-        print('Only the EPW file location will be used for morphing.')
+    if location_name is None:
+        print('A location name is required')
+        raise SystemExit
 
-    if 'epw' not in epw_output_filename:
-        print('Output file must be an EPW file')
+    if epw_read is None or epw_write is None:
+        print('Both read and write epw locations are required.')
         raise SystemExit
 
 
-def gen_future_weather_file(epw_output_filename: str,
+
+def gen_future_weather_file(location_name: str,
+                            lon: float,
+                            lat: float,
+                            epw_read: str,
+                            epw_write: str,
                             epw_variable_name: str,
+                            factor: str,
                             present_range: range,
                             future_range: range,
-                            present_climate_files: list,
-                            future_climate_files: list,
-                            factor: str,
-                            epw_filename=None,
-                            lon=None, lat=None):
+                            morphing_climate_files: list):
+
+
     """ gen_future_weather_file(str, float, float, str, str,
                                 range, range, list, list)
 
@@ -809,36 +812,31 @@ def gen_future_weather_file(epw_output_filename: str,
         represeting future data.
 
         Args:
-            epw_filename(str): The path to the epw file to regenerate.
-                               If not provided lon and lat coordinates
-                               must be provided.
+            location_name(str): The name of the EPW location.
             lon (float): EPW Location coordinate
             lat (float): EPW Location coordinate
-            epw_output_filename(str): The path to the future epw file
-                                      to create
+            epw_variable_name(str): The path to the future epw file
+                                    to create
+            factor (str): Averaging type for the morphing parameters
             present_range(range): The range of years that makes up "present"
                           for this particular run.
             future_range(range): The range of years that makes up "future" for
                          this particular run.
-            gcm(list): Names of the GCMs to use for simulated values.
+            morphing_climate_files(list): Names of the precomputed files 
+                         to use for simulated values.
     """
     # Confirm the supplied inputs are correct
-    check_epw_inputs(epw_filename, lon, lat,
-                     epw_output_filename)
+    check_epw_inputs(location_name, epw_read, epw_write, lon, lat)
 
     # Confirm Accurate variable name
     check_epw_variable_name(epw_variable_name)
 
     # Confirm correct GCM files supplied given variable name
+    ##FIXME
 
-    if epw_filename is not None:
-        if lon is not None and lat is not None:
-            print('EPW File and Lon/Lat coordinates provided.')
-            print('Only the EPW file coordinates will be used.')
-        # Get the coordinates from the weather file
-        epw_coords = get_epw_coordinates(epw_filename)
-        lon = epw_coords[0]
-        lat = epw_coords[1]
+    ##Run the offset to obtain the epw_file
+
+    
 
     # Get the data from epw file and the headers from the epw.
     with open(epw_filename) as epw_file:
@@ -1207,8 +1205,9 @@ def adjust_epw_with_prism(epw_data, prism_diff):
 def offset_current_weather_file(lon: float,
                                 lat: float,
                                 location_name: str,
-                                read_dir: str):
-    """gen_prism_offset_file(float, float, string, string)
+                                read_dir: str,
+                                write_dir:str):
+    """gen_prism_offset_file(float, float, string, string,string)
 
         Generates an epw file based on a provided location by finding
         the nearest weather file to the supplied coordinates and
@@ -1224,6 +1223,8 @@ def offset_current_weather_file(lon: float,
                                    supplied.
             read_dir(string): The directory location of the current 
                               weather files.
+            write_dir(string): The directory location for the new 
+                              weather files.
 
     """
 
@@ -1231,8 +1232,10 @@ def offset_current_weather_file(lon: float,
     # Search through all weather files for the closest to the coords
     epw_closest = find_closest_epw_file(coords,read_dir)
     print(epw_closest)
-    write_dir = os.path.dirname(epw_closest) + '/offsets/'
+    ##write_dir = os.path.dirname(epw_closest) + '/offsets/'
     print(write_dir)
+    if not os.path.exists(write_dir):
+        os.makedirs(write_dir)
     epw_closest_file = os.path.basename(epw_closest)
     epw_output_name = write_dir + 'CAN_BC_' + location_name \
                       + '_offset_from' + \
@@ -1256,16 +1259,19 @@ def offset_current_weather_file(lon: float,
 
     prism_diff = prism_loc_tas - prism_epw_tas
     print(prism_diff)
+    diff_sum = sum(prism_diff)
 
-    # Get the data from epw file and the headers from the epw.
     with open(epw_closest) as epw_file:
         epw_data = epw_to_data_frame(epw_file)
         headers = get_epw_header(epw_file)
 
-    epw_offset = adjust_epw_with_prism(epw_data, prism_diff)
-    print(epw_offset.shape)
-    # Write the data out to the epw file.
-    epw_output_filename = "/storage/data/projects/rci/weather_files/wx_files/"\
-                          + "TEST.epw"
-    print(epw_output_filename)
-    write_epw_data(epw_offset, headers, epw_output_name)
+    if diff_sum==0:
+        print("No offset required")
+        write_epw_data(epw_data,headers,epw_output_name)
+    else:
+        # Get the data from epw file and the headers from the epw.
+
+        epw_offset = adjust_epw_with_prism(epw_data, prism_diff)
+        print(epw_offset.shape)
+        print(epw_output_name)
+        write_epw_data(epw_offset, headers, epw_output_name)
