@@ -87,7 +87,8 @@ def test_get_epw_summary_values(epwfile):
 
 
 def test_gen_prism_offset_weather_file():
-    gen_prism_offset_weather_file(49.2, -123.2)
+    gen_prism_offset_weather_file(49.2, -123.2,"UVic",
+                                  "/storage/data/projects/rci/weather_files/wx_files/")
     assert 1 == 1
 
 

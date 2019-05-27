@@ -7,6 +7,7 @@ import netCDF4 as cdf
 from typing import IO
 import pandas
 import glob
+import os as os
 
 from .epw import epw_to_data_frame
 
@@ -1105,18 +1106,19 @@ def list_of_epw_coordinates(files):
     return(coords)
 
 
-def find_closest_epw_file(coords):
-    """ find_closest_epw_file(coords)
+def find_closest_epw_file(coords,read_dir):
+    """ find_closest_epw_file(coords,read_dir)
         Loops through all epw files in the weather file directory,
         produces a list of coordinates for all available files and
         finds the file nearest to the coords.
         Args:
             coords(float,float): The longitude and latitude to
             compare with the weather files.
+            read_dir(string): Location for the weather files.
     """
     print(coords)
     # FIXME with non-hard coded location
-    read_dir = "/storage/data/projects/rci/weather_files/wx_files/"
+    # read_dir = "/storage/data/projects/rci/weather_files/wx_files/"
     files = glob.glob(read_dir+'*.epw')
 
     coord_data = list_of_epw_coordinates(files)
@@ -1202,10 +1204,11 @@ def adjust_epw_with_prism(epw_data, prism_diff):
     return(new_epw)
 
 
-def gen_prism_offset_weather_file(lat: float,
-                                  lon: float,
-                                  ):
-    """gen_prism_offset_file(float, float)
+def offset_current_weather_file(lon: float,
+                                lat: float,
+                                location_name: str,
+                                read_dir: str):
+    """gen_prism_offset_file(float, float, string, string)
 
         Generates an epw file based on a provided location by finding
         the nearest weather file to the supplied coordinates and
@@ -1217,12 +1220,24 @@ def gen_prism_offset_weather_file(lat: float,
 
             lon(float): The logitude to read data from the climate files.
 
+            location_name(string): The name of the coordinate location
+                                   supplied.
+            read_dir(string): The directory location of the current 
+                              weather files.
+
     """
 
     coords = (lon, lat)
     # Search through all weather files for the closest to the coords
-    epw_closest = find_closest_epw_file(coords)
-
+    epw_closest = find_closest_epw_file(coords,read_dir)
+    print(epw_closest)
+    write_dir = os.path.dirname(epw_closest) + '/offsets/'
+    print(write_dir)
+    epw_closest_file = os.path.basename(epw_closest)
+    epw_output_name = write_dir + 'CAN_BC_' + location_name \
+                      + '_offset_from' + \
+                      epw_closest_file.replace('CAN_BC','')
+    print(epw_output_name)
     # Return the coordinates of the closest epw file
     epw_closest_coords = get_epw_coordinates(epw_closest)
     print(epw_closest_coords)
@@ -1251,5 +1266,6 @@ def gen_prism_offset_weather_file(lat: float,
     print(epw_offset.shape)
     # Write the data out to the epw file.
     epw_output_filename = "/storage/data/projects/rci/weather_files/wx_files/"\
-                          "TEST.epw"
-    write_epw_data(epw_offset, headers, epw_output_filename)
+                          + "TEST.epw"
+    print(epw_output_filename)
+    write_epw_data(epw_offset, headers, epw_output_name)
