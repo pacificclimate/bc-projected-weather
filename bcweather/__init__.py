@@ -1,6 +1,7 @@
 from datetime import datetime
 import re
 
+import pdb
 import numpy as np
 from netCDF4 import Dataset
 import netCDF4 as cdf
@@ -354,17 +355,15 @@ def morph_liquid_precip_quantity(epw_pr: pandas.Series,
 def generate_dry_bulb_temperature(epw_tas: pandas.Series,
                                   epw_dates: pandas.Series,
                                   lon: float, lat: float,
-                                  tasmax_present_climate_files: list,
-                                  tasmax_future_climate_files: list,
-                                  tasmin_present_climate_files: list,
-                                  tasmin_future_climate_files: list,
+                                  alpha_tas_files: list,
+                                  delta_tas_files: list,
                                   present_range: range,
                                   future_range: range,
                                   factor: str
                                   ):
     """ generate_dry_bulb_temperature(pandas.Series,pandas.Series,
                                       float,float,
-                                      list,list,list,list,
+                                      list,,list,
                                       range,range,str)
 
         This function takes in data from the epw file, and returns
@@ -376,8 +375,8 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
             epw_dates(Series): The hourly dates from the epw file.
             lon(float): The longitude to read data from climate files
             lat(float): The latitude to read data from climate files
-            *_gcm_files(list): The list of gcm files for past and future
-            tasmax and tasmin
+            *_gcm_files(list): The list of gcm files for alpha and delta
+            morphing factors
             present_range(range): Year bounds for the present climate.
             future_range(range): Year bounds for the future climate.
             factor(str): Date factor with which to average.
@@ -385,6 +384,8 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
         Returns:
             a list with future dry bulb temperature data.
     """
+
+    # Use 'alpha_tas' and 'tas' for cdfvariables 
     # Morphing factors from the input gcm files
     tasmax_present = get_ensemble_averages(
         cdfvariable='tasmax',
@@ -599,8 +600,10 @@ def get_ensemble_averages(cdfvariable: str,
                           gcm_files: list,
                           time_range: list,
                           factor: str,
+                          rlen: int,
                           ):
-    """ get_ensemble_averages(cdfvariable,lat,lon,gcms_files,time_range,factor)
+    """ get_ensemble_averages(cdfvariable,lat,lon,gcms_files,time_range,
+                              factor,rlen)
 
         Returns the climatological averages of the specified netcdf files.
         Args:
@@ -610,6 +613,7 @@ def get_ensemble_averages(cdfvariable: str,
             gcm_files(list): Ensemble of GCMs to use
             time_range(list): The start and end years to read data from, to.
             factor(str): The time interval over which to average.
+            rlen(int): The window for the rolling average if factor is 'roll'
         Returns:
             a dict with two numpy arrays.
             One for each time interval of the year.
@@ -622,20 +626,34 @@ def get_ensemble_averages(cdfvariable: str,
     if factor == 'daily':
         tlen = 365
         fac = '%m %d'
-    # Compute the climatologies
+    if factor == 'roll':
+        tlen = 365
+        fac = '%m %d'
+    # Assemble the morphing factors
     mean_aggregate = np.zeros((tlen, len(gcm_files)))
     std_aggregate = np.zeros((tlen, len(gcm_files)))
     for i, gcm_file in enumerate(gcm_files):
         with Dataset(gcm_file) as f:
             file_climate = get_climate_data(
-                f, lat, lon, cdfvariable, time_range, fac)
-
+                f, lat, lon, cdfvariable, fac)
         mean_aggregate[:, i] = file_climate['mean'][:, 0]
         std_aggregate[:, i] = file_climate['std'][:, 0]
 
-    ens_climatologies = {'mean': mean_aggregate,
-                         'std': std_aggregate}
-    return ens_climatologies
+    mean_ens = np.nanmean(mean_aggregate,axis=1)
+    std_ens = np.nanmean(std_aggregate,axis=1)
+    print('Mean ENS')
+    print(mean_ens.shape)
+    if factor == 'roll':
+        ens_clim = {'mean': 
+                    mean_ens.rolling(rlen,min_periods=1).mean(),
+                    'std': 
+                    std_ens.rolling(rlen,min_periods=1).mean()}
+    else:
+        ens_clim = {'mean': 
+                    mean_ens.flatten(),
+                    'std': 
+                    std_ens.flatten()}      
+    return ens_clim
 
 # Address the netcdf time calendar issues
 
@@ -657,56 +675,13 @@ def cftime_to_datetime(data_dates, calendar):
     dates_array = np.asarray(dates_list)
     return(dates_array)
 
-# Fill in missing leap and month dates for 365/360 calendars
-
-
-def format_netcdf_series(time_range, calendar, data):
-    # Set up full date series
-    startyear, endyear = time_range
-    full_dates = pandas.date_range(
-        str(startyear)+'-01-01', str(endyear)+'-12-31')
-    ex_years = [date.strftime('%Y') for date in full_dates]
-    ex_months = [date.strftime('%m') for date in full_dates]
-    ex_days = [date.strftime('%d') for date in full_dates]
-    dates_matrix = np.column_stack((ex_years, ex_months, ex_days))
-    ymd = [x+'-'+y+'-'+z for x, y, z in zip(ex_years, ex_months, ex_days)]
-    dates_list = [datetime.strptime(date, '%Y-%m-%d') for date in ymd]
-    ylen = int(np.diff(time_range))+1
-    empty_vector = np.empty(ylen*365)
-    empty_vector[:] = np.nan
-
-    # Add NAN for missing days where needed
-    # Distribute missing days equally through 360 day calendar
-    if calendar == '360_day':
-        hix = np.repeat(True, 365*ylen)
-        blanks = np.arange(72, 365*ylen, 73)
-        hix[blanks] = False
-        empty_vector[hix] = data
-        data = empty_vector
-
-    # If 360 it must still pass through the 365 option to add the leap day
-    if calendar == '365_day' or calendar == '360_day':
-        indices = ['-02-29' in s for s in ymd]
-        empty_vector = np.empty(len(ymd))
-        empty_vector[:] = np.nan
-        empty_vector[~np.array(indices)] = data
-        dates_matrix = {'Time': dates_list, 'Data': empty_vector}
-
-    # If gregorian or standard it should have necessary dates
-    if calendar != '365_day' and calendar != '360_day':
-        dates_matrix = {'Time': dates_list, 'Data': data}
-
-    return(dates_matrix)
-
-
 def get_climate_data(nc: Dataset,
                      lat: float,
                      lon: float,
                      cdfvariable: str,
-                     time_range: list,
                      factor: str,
                      ):
-    """ get_climate_data(Dataset, float, float, str, list, str)
+    """ get_climate_data(Dataset, float, float, str, str)
 
         Gets a list of data for each day of each year within time_range from
         the climate file where the location is closest to lat, lon.
@@ -716,7 +691,6 @@ def get_climate_data(nc: Dataset,
             lat(float): The latitude to read data from.
             lon(float): The longitude to read data from.
             cdfvariable(str): The variable to read from the netcdf file.
-            time_range(list): The start and end years to read data from, to.
             factor(str): The time factor with which to average.
         Returns:
             a dict with two lists.
@@ -727,12 +701,6 @@ def get_climate_data(nc: Dataset,
     data_dates = cdf.num2date(
         nc["time"][:], nc["time"].units, nc["time"].calendar)
     dates_array = cftime_to_datetime(data_dates, nc['time'].calendar)
-    startyear, endyear = time_range
-    t0 = np.argwhere(dates_array >= datetime(startyear, 1, 1)).min()
-    if nc['time'].calendar == "360_day":
-        tn = np.argwhere(dates_array <= datetime(endyear, 12, 30)).max()
-    else:
-        tn = np.argwhere(dates_array <= datetime(endyear, 12, 31)).max()
 
     # Get the latitude of each location in the file.
     lat_data = nc.variables["lat"][:]
@@ -741,22 +709,32 @@ def get_climate_data(nc: Dataset,
 
     # Find the indices of the data with the closest lat and lon to
     # those passed.
-    lat_index = np.absolute(lat_data - lat).argmin()
-    lon_index = np.absolute(lon_data - lon).argmin()
+    lat_index = np.absolute(lat - lat_data).argmin()
+    lon_index = np.absolute(lon - lon_data).argmin()
+    #print(lon_index)
+    #print('Coords')
+    #print(lon_data)
+    #print('Diff')
+    #print(lon - lon_data)
+    #print('ABS Diff')
+    #print(np.absolute(lon - lon_data))
+    #print('Min Diff')
+    #print(np.absolute(lon - lon_data).argmin())
+    print('Selected lon')
+    print(lon_data[lon_index])
+    print('Actual lon')
+    print(lon)
+    ##pdb.set_trace()
+    # Grab the actual relevant data from the file
+    data = nc.variables[cdfvariable][:, lat_index, lon_index]
 
-    # Grab the actual relevant data from the file (tn+1 to fix the indexing)
-    data = nc.variables[cdfvariable][t0:tn+1, lat_index, lon_index]
-    # Fill in missing dates is caledar is 365_day or 360_day
-    standard_data = format_netcdf_series(time_range, nc["time"].calendar, data)
-    data_frame = pandas.DataFrame(standard_data, columns=['Time', 'Data'])
+    dates_matrix = {'Time': dates_array, 'Data': data}
+    data_frame = pandas.DataFrame(dates_matrix, columns=['Time', 'Data'])
+
     time_mean = data_frame.groupby(
         data_frame['Time'].dt.strftime(factor)).mean().values
     time_std = data_frame.groupby(
         data_frame['Time'].dt.strftime(factor)).std().values
-    # Remove the extra date that only appears with leap years
-    if factor == 'daily':
-        time_mean = time_mean[0:365]
-        time_std = time_std[0:365]
     data_clim = {'mean': time_mean, 'std': time_std}
     return data_clim
 
@@ -835,8 +813,10 @@ def gen_future_weather_file(location_name: str,
     ##FIXME
 
     ##Run the offset to obtain the epw_file
-
-    
+    epw_filename = offset_current_weather_file(lon,lat,
+                                location_name,
+                                read_dir,
+                                write_dir)    
 
     # Get the data from epw file and the headers from the epw.
     with open(epw_filename) as epw_file:
@@ -848,28 +828,21 @@ def gen_future_weather_file(location_name: str,
     # Dry Bulb Temperature
     if epw_variable_name == 'dry_bulb_temperature':
         # Separate Tasmax and Tasmin files from the inputs
-        tx_ix = np.array([i for i, gcm in enumerate(
-            present_climate_files) if 'tasmax' in gcm])
-        tasmax_present_climate_files = np.array(
-            present_climate_files)[tx_ix.astype(int)]
-        tn_ix = np.array([i for i, gcm in enumerate(
-            present_climate_files) if 'tasmin' in gcm])
-        tasmin_present_climate_files = np.array(present_climate_files)[tn_ix]
-        tx_ix = np.array([i for i, gcm in enumerate(
-            future_climate_files) if 'tasmax' in gcm])
-        tasmax_future_climate_files = np.array(future_climate_files)[tx_ix]
-        tn_ix = np.array([i for i, gcm in enumerate(
-            future_climate_files) if 'tasmin' in gcm])
-        tasmin_future_climate_files = np.array(future_climate_files)[tn_ix]
+        alpha_ix = np.array([i for i, gcm in enumerate(
+            morphing_climate_files) if 'alpha_tasmax_tasmin' in gcm])
+        alpha_tas_files = np.array(
+            morphing_climate_files)[alpha_ix]
+
+        delta_ix = np.array([i for i, gcm in enumerate(
+            morphing_climate_files) if 'delta_tas_' in gcm])
+        delta_tas_files = np.array(morphing_climate_files)[delta_ix]
 
         epw_dbt_morph = generate_dry_bulb_temperature(
             epw_data[epw_variable_name],
             epw_data['datetime'],
             lon, lat,
-            tasmax_present_climate_files,
-            tasmax_future_climate_files,
-            tasmin_present_climate_files,
-            tasmin_future_climate_files,
+            alpha_tas_files,
+            delta_tas_files,
             present_range, future_range,
             factor
         )
@@ -1207,7 +1180,7 @@ def offset_current_weather_file(lon: float,
                                 location_name: str,
                                 read_dir: str,
                                 write_dir:str):
-    """gen_prism_offset_file(float, float, string, string,string)
+    """offset_current_weather_file(float, float, string, string,string)
 
         Generates an epw file based on a provided location by finding
         the nearest weather file to the supplied coordinates and
@@ -1275,3 +1248,5 @@ def offset_current_weather_file(lon: float,
         print(epw_offset.shape)
         print(epw_output_name)
         write_epw_data(epw_offset, headers, epw_output_name)
+
+    return(epw_output_name)
