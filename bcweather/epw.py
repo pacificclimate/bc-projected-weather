@@ -29,11 +29,11 @@ field_names = (
 )
 missing_values = (99, 99.9, 999, 9999, 99999, 999999)
 
-
+# Set the year to 1999 otherwise the order is incorrect
 def date_converter(*args):
     year, month, day, hour, minute = (int(arg) for arg in args)
     hour -= 1
-    return datetime.datetime(year, month, day, hour, minute)
+    return datetime.datetime(1999, month, day, hour, minute)
 
 
 def epw_to_data_frame(file_):
