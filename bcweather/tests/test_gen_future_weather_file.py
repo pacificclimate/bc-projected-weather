@@ -18,6 +18,7 @@ from bcweather import morph_wind_speed
 from bcweather import morph_total_sky_cover
 from bcweather import morph_opaque_sky_cover
 from bcweather import offset_current_weather_file
+from bcweather import gen_future_weather_file
 from bcweather.epw import epw_to_data_frame
 
 
@@ -52,10 +53,10 @@ def test_get_climate_data():
            ##"MIROC5", "MRI-CGCM3"]
     alpha_files = []
     delta_files = []
+
     for gcm in gcms:
         print(gcm)
-        alpha_file = glob.glob(gcm_dir + 'alpha_tasmax_tasmin_'
-                              + gcm + '_1971-2000_2041-2070.nc')
+        alpha_file = glob.glob(gcm_dir + 'alpha_tasmax_tasmin_'+ gcm + '_1971-2000_2041-2070.nc')
         delta_file = glob.glob(gcm_dir + 'delta_tas_'
                               + gcm + '_1971-2000_2041-2070.nc')
         alpha_files.append(alpha_file[0])
@@ -120,7 +121,7 @@ def test_get_ensemble_averages():
     assert(len(alpha_tas['mean']) == 12)
 """
 
-
+"""
 def test_generate_dry_bulb_temperature():
     print('Test Read Alpha and Delta Tas')
     lon=-123.015469
@@ -242,7 +243,7 @@ def test_generate_horizontal_radiation():
         factor,rlen
     )
     x = range(0,len(epw_data[epw_variable_name]))
-    """
+
     plt.subplot(2,1,1)
     plt.plot(x,epw_rad_morph[:,0],linewidth=1) # Global
     plt.plot(x,epw_data['global_horizontal_radiation'],
@@ -256,7 +257,6 @@ def test_generate_horizontal_radiation():
     plt.title('Diffuse')
     plt.legend(('Morphed','File'),loc='upper left')
     plt.show()
-    """
     ##pdb.set_trace()
     assert len(epw_rad_morph) == len(epw_data[epw_variable_name])
 
@@ -309,7 +309,55 @@ def test_generate_stretched_series():
     plt.show()
     ##pdb.set_trace()
     assert len(epw_var_morph) == len(epw_data[epw_variable_name])
+"""
 
+
+def test_gen_future_weather_file():
+    location_name = 'TestSite'
+    lon=-123.015469
+    lat=49.249541
+    factor = 'roll'
+    rlen = 21
+    rcp = 'rcp85'
+    prism_files = ['/storage/data/climate/PRISM/dataportal/tmax_monClim_PRISM_historical_run1_198101-201012.nc',
+                   '/storage/data/climate/PRISM/dataportal/tmin_monClim_PRISM_historical_run1_198101-201012.nc',
+                   '/storage/data/climate/PRISM/dataportal/pr_monClim_PRISM_historical_run1_198101-201012.nc']
+    #'atmospheric_station_pressure'
+    #'direct_normal_radiation'
+    #'relative_humidity'
+    #'wind_speed'
+    #'total_sky_cover'
+    epw_variable_name = 'relative_humidity'
+    cdfvariable = 'rhs'
+    morphing_function = morph_relative_humidity
+
+    gcm_dir = "/storage/data/climate/downscale/BCCAQ2+PRISM/bccaq2_tps/epw_factors/"
+    gcms = ["ACCESS1-0", "CanESM2", "CNRM-CM5", "CSIRO-Mk3-6-0",
+           "GFDL-ESM2G", "HadGEM2-CC", "HadGEM2-ES", "inmcm4",
+           "MIROC5", "MRI-CGCM3"]
+    alpha_files = []
+    for gcm in gcms:
+        print(gcm)
+        alpha_file = glob.glob(gcm_dir + 'alpha_' + cdfvariable + '_'
+                              + gcm + '_1971-2000_2041-2070.nc')
+        alpha_files.append(alpha_file[0])
+    epw_read = "/storage/data/projects/rci/weather_files/wx_2016/" #\
+                   #+ "wx_2016/CAN_BC_Abbotsford.Intl.AP.711080_CWEC2016.epw" 
+    epw_write = "/storage/data/projects/rci/weather_files/" 
+
+    epw_var_morph = gen_future_weather_file(
+        location_name=location_name,
+        lon=lon,
+        lat=lat,
+        epw_read=epw_read,
+        epw_write=epw_write,
+        epw_variable_name=epw_variable_name,
+        factor=factor,
+        rlen=rlen,
+        prism_files=prism_files,
+        morphing_climate_files=alpha_files)
+        
+    assert 1 == 1
 
 
 def test_epw_to_data_frame(epwfile):

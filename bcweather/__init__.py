@@ -698,7 +698,8 @@ def check_epw_variable_name(epw_variable_name: str):
 
 def check_epw_inputs(location_name: str,
                      epw_read: str, epw_write: str,
-                     lon: float, lat: float) :
+                     lon: float, lat: float,
+                     epw_file_name=None) :
 
     if lon is None or lat is None:
         print('Both longitude and latitude coordinates are required.')
@@ -712,6 +713,78 @@ def check_epw_inputs(location_name: str,
         print('Both read and write epw locations are required.')
         raise SystemExit
 
+    if epw_file_name is not None:
+        epw_file = os.path.basename(epw_file_name) #File only                                                                              
+        epw_split = epw_file.split('_')
+        epw1 = epw_split[0] == 'CAN'
+        epw2 = epw_split[1] == 'BC'
+        epw4 = epw_split[3] == 'CWEC2016.epw'
+        if epw0 or epw1 or epw3:
+            print('Supplied EPW file has incorrect file name format')
+            print('Must be:')
+            print('CAN_BC_LOCATION.ID_CWEC2016.epw')
+            raise SystemExit
+        
+# ----------------------------------------------------------------
+def get_short_morph_variable(epw_variable: str):
+    """ get_short_morph_variable(str)
+
+        Returns the short name of the epw variable
+
+        Args:
+            epw_variable(str): The EPW variable name.
+        Returns:
+            short_morph_variable: Short EPW variable.
+    """
+
+    field_names = {
+        'dry_bulb_temperature' : 'TAS',
+        'dew_point_temperature': 'DWPT',
+        'relative_humidity': 'RHS',
+        'atmospheric_station_pressure': 'PS', 
+        'extraterrestrial_horizontal_radiation': 'ETHR',
+        'extraterrestrial_direct_normal_radition': 'ETDR',
+        'horizontal_infrared_radiation_intensity': 'IR', 
+        'global_horizontal_radiation': 'GHR' ,
+        'direct_normal_radiation': 'DNR',
+        'diffuse_horizontal_radiation': 'DHR',
+        'wind_direction': 'WDIR',
+        'wind_speed': 'WSPD',
+        'total_sky_cover': 'TSC',
+        'opaque_sky_cover': 'OSC',
+        'snow_depth' : 'SND',
+        'liquid_precipitation_quantity':'PR'
+        }
+    short_morph_variable = field_names.get(epw_variable,
+                                           'Missing EPW Variable')
+    return(short_morph_variable)
+
+# ----------------------------------------------------------------
+
+
+def add_morphing_info(headers: str, epw_variable: str):
+    """ morphing_variable_name(str, str)
+
+        Adds the short name of the epw variable to
+        the header information
+
+        Args:
+            headers(str): EPW File headers
+            epw_variable(str): The EPW variable name.
+        Returns:
+            morph_headers(str): Headers with short morphing 
+            variable name added
+    """
+    morph_val = get_short_morph_variable(epw_variable)
+    headers_split = headers.split('\n')
+    morph_check = 'MORPHED:' in headers_split[0]
+    if morph_check:
+        headers_split[0] = headers_split[0] + '|' + morph_val
+    else:
+        headers_split[0] = headers_split[0] + ' Morphed:' + morph_val
+    headers_morph = "\n".join(headers_split)
+    return(headers_morph)
+
 # ----------------------------------------------------------------
 
 
@@ -722,12 +795,14 @@ def gen_future_weather_file(location_name: str,
                             epw_write: str,
                             epw_variable_name: str,
                             factor: str,
+                            rlen:int,
                             prism_files: list,
-                            morphing_climate_files: list):
+                            morphing_climate_files: list,
+                            epw_file_name=None):
 
 
     """ gen_future_weather_file(str, float, float, str, str,
-                                list, list)
+                                int,list, list,str)
 
         Regenerates the passed epw file into a weather file
         represeting future data.
@@ -736,33 +811,46 @@ def gen_future_weather_file(location_name: str,
             location_name(str): The name of the EPW location.
             lon (float): EPW Location coordinate
             lat (float): EPW Location coordinate
+            epw_read(str): EPW Read Directory 
+            epw_write(str): EPW Write Directory              
             epw_variable_name(str): The path to the future epw file
                                     to create
             factor (str): Averaging type for the morphing parameters
+            roll (int): Window for rolling average (1 if not using)
             prism_files(list): Names of the BC PRISM files
             morphing_climate_files(list): Names of the precomputed files 
                          to use for simulated values.
+            epw_file_name(str): EPW file to use instead of the 
+                         nearest file if needed.
     """
     # Confirm the supplied inputs are correct
-    check_epw_inputs(location_name, epw_read, epw_write, lon, lat)
+    check_epw_inputs(location_name, epw_read, epw_write, 
+                     lon, lat,epw_file_name)
 
     # Confirm Accurate variable name
     check_epw_variable_name(epw_variable_name)
 
-    # Confirm correct GCM files supplied given variable name
-    ##FIXME
 
     ##Run the offset to obtain the epw_file
     epw_filename = offset_current_weather_file(lon,lat,
-                                location_name,
-                                prism_files,
-                                read_dir,
-                                write_dir)    
+                                               location_name,
+                                               prism_files,
+                                               epw_read,
+                                               epw_write,
+                                               epw_file_name)    
+
+    epw_var_short = get_short_morph_variable(epw_variable_name)
+    prefix =  factor + str(rlen) 
+    epw_file_only = os.path.basename(epw_filename) #File only
+    epw_output_filename = epw_write + 'MORPHED_'+ epw_var_short \
+                          + '_' + prefix \
+                          + epw_file_only.replace('CAN_BC','')
 
     # Get the data from epw file and the headers from the epw.
     with open(epw_filename) as epw_file:
         epw_data = epw_to_data_frame(epw_file)
         headers = get_epw_header(epw_file)
+    morph_headers = add_morphing_info(headers,epw_variable_name)
 
     # Morph columns of EPW dataframe based on selected options
     # ----------------------------------------------------------
@@ -786,9 +874,9 @@ def gen_future_weather_file(location_name: str,
             delta_tas_files,
             factor
         )
-        pdb.set_trace()
         epw_data[epw_variable_name] = epw_dbt_morph
-        write_epw_data(epw_data, headers, epw_output_filename)
+        write_epw_data(epw_data, morph_headers, epw_output_filename)
+
         print('Successfully morphed dry bulb temperature')
         return(epw_dbt_morph)
     # ----------------------------------------------------------
@@ -812,7 +900,8 @@ def gen_future_weather_file(location_name: str,
             factor,rlen
         )
         epw_data[epw_variable_name] = epw_dwpt_morph
-        write_epw_data(epw_data, headers, epw_output_filename)
+        
+        write_epw_data(epw_data, morph_headers, epw_output_filename)
         print('Successfully morphed dewpoint temperature')
         return(epw_dwpt_morph)
     # ----------------------------------------------------------
@@ -835,7 +924,7 @@ def gen_future_weather_file(location_name: str,
         )
         epw_data['global_horizontal_radiation'] = epw_hr_morph[:, 0]
         epw_data['diffuse_horizontal_radiation'] = epw_hr_morph[:, 1]
-        write_epw_data(epw_data, headers, epw_output_filename)
+        write_epw_data(epw_data, morph_headers, epw_output_filename)
         print('Successfully morphed global and diffuse horizontal radiation')
         return(epw_hr_morph)
     # ----------------------------------------------------------
@@ -883,8 +972,9 @@ def gen_future_weather_file(location_name: str,
                                                   morphing_function,
                                                   factor,rlen)
         epw_data[epw_variable_name] = epw_var_morph
-        write_epw_data(epw_data, headers, epw_output_filename)
+        write_epw_data(epw_data, morph_headers, epw_output_filename)
         print('Successfully morphed '+epw_variable_name)
+        print(epw_output_filename)
         return(epw_var_morph)
 
 # -----------------------------------------------------------------
@@ -1050,11 +1140,7 @@ def find_closest_epw_file(coords,read_dir):
             compare with the weather files.
             read_dir(string): Location for the weather files.
     """
-    print(coords)
-    # FIXME with non-hard coded location
-    # read_dir = "/storage/data/projects/rci/weather_files/wx_files/"
     files = glob.glob(read_dir+'*.epw')
-
     coord_data = list_of_epw_coordinates(files)
     wx_index = np.sum(np.square(coord_data-coords), axis=1).argmin()
     wx_selected = files[wx_index]
@@ -1070,7 +1156,6 @@ def prism_ncfile(varname:str,prism_files:list):
             varname(str): Variable name
             prism_dir(list): PRISM files
     """
-    # FIXME prefer to use list comprehension but can't pass varname
     for i, f in enumerate(prism_files):
         if varname in f:
             ix = i
@@ -1142,7 +1227,6 @@ def adjust_epw_with_prism(epw_data, prism_diff):
             prism_diff(range): 12 monthly PRISM temperature offsets
     """
     epw_months = pandas.DatetimeIndex(epw_data['datetime']).month
-    print('Months')
     new_epw = epw_data.copy()
     months = range(1, 13)
     for mn in months:
@@ -1159,9 +1243,11 @@ def offset_current_weather_file(lon: float,
                                 location_name: str,
                                 prism_files: list,
                                 read_dir: str,
-                                write_dir:str):
+                                write_dir:str,
+                                epw_filename=None):
     """offset_current_weather_file(float, float, 
-                                   string,string, string,string)
+                                   string,string, 
+                                   string,string,str)
 
         Generates an epw file based on a provided location by finding
         the nearest weather file to the supplied coordinates and
@@ -1180,39 +1266,35 @@ def offset_current_weather_file(lon: float,
                               weather files.
             write_dir(string): The directory location for the new 
                               weather files.
+            epw_filename(string): Optional EPW file to use instead of 
+                              the default nearest to coordinates.
 
     """
 
     coords = (lon, lat)
-    # Search through all weather files for the closest to the coords
-    epw_closest = find_closest_epw_file(coords,read_dir)
-    print(epw_closest)
-    print(write_dir)
+    if epw_filename is not None:
+        epw_closest = epw_filename
+    else:
+        # Search through all weather files for the closest to the coords
+        epw_closest = find_closest_epw_file(coords,read_dir) # Full path
     if not os.path.exists(write_dir):
         os.makedirs(write_dir)
-    epw_closest_file = os.path.basename(epw_closest)
+    epw_closest_file = os.path.basename(epw_closest) #File only
     epw_output_name = write_dir + 'CAN_BC_' + location_name \
                       + '_offset_from' + \
                       epw_closest_file.replace('CAN_BC','')
-    print(epw_output_name)
     # Return the coordinates of the closest epw file
     epw_closest_coords = get_epw_coordinates(epw_closest)
-    print(epw_closest_coords)
     # Any PRISM climatology file to grab coordinates
     nc = prism_ncfile('tmax',prism_files)
 
-    print('Closest PRISM cell to supplied coords')
     prism_cell = get_prism_indices(nc, coords)
-    print(prism_cell)
     prism_loc_tas = prism_tas(nc, prism_cell,prism_files)
 
-    print('PRISM coords of cell closest to EPW File')
     epw_cell = get_prism_indices(nc, epw_closest_coords)
-    print(epw_cell)
     prism_epw_tas = prism_tas(nc, epw_cell,prism_files)
 
     prism_diff = prism_loc_tas - prism_epw_tas
-    print(prism_diff)
     diff_sum = sum(prism_diff)
 
     with open(epw_closest) as epw_file:
@@ -1225,8 +1307,6 @@ def offset_current_weather_file(lon: float,
     else:
         # Get the data from epw file and the headers from the epw.
         epw_offset = adjust_epw_with_prism(epw_data, prism_diff)
-        print(epw_offset.shape)
-        print(epw_output_name)
         write_epw_data(epw_offset, headers, epw_output_name)
 
     return(epw_output_name)
