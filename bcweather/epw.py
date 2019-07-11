@@ -1,7 +1,4 @@
-'''
-'''
 import datetime
-
 import pandas
 
 # From: https://bigladdersoftware.com/epx/docs/8-3/auxiliary-programs/energyplus-weather-file-epw-data-dictionary.html#field-wind-direction # noqa
@@ -29,10 +26,11 @@ field_names = (
 )
 missing_values = (99, 99.9, 999, 9999, 99999, 999999)
 
-# Set the year to 1999 otherwise the order is incorrect
+
 def date_converter(*args):
     year, month, day, hour, minute = (int(arg) for arg in args)
     hour -= 1
+    # Set the year to 1999 otherwise the order is incorrect
     return datetime.datetime(1999, month, day, hour, minute)
 
 
@@ -56,5 +54,3 @@ def epw_to_data_frame(file_):
         parse_dates={'datetime': [0, 1, 2, 3, 4]},
         date_parser=date_converter
     )
-
-# na_values=missing_values,

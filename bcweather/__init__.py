@@ -1,7 +1,6 @@
 from datetime import datetime
 import re
 
-import pdb
 import numpy as np
 from netCDF4 import Dataset
 import netCDF4 as cdf
@@ -38,10 +37,9 @@ def morph_dry_bulb_temperature(epw_tas: pandas.Series,
             alpha_tas(list): Lists of change factors for
                             max,min temperature.
             delta_tas(list): Lists of change factors for
-                            mean temperature.   
+                            mean temperature.
             factor(str): Date factor with which to average.
             rlen(int) : Rolling average window (1 if not needed).
-
         Returns:
             an array with future dry bulb temperature data.
     """
@@ -54,21 +52,21 @@ def morph_dry_bulb_temperature(epw_tas: pandas.Series,
         fac = '%m %d'
 
     epw_tas_dict = {'datetime': epw_dates, 'data': epw_tas}
-    epw_tas_df = pandas.DataFrame(epw_tas_dict, 
+    epw_tas_df = pandas.DataFrame(epw_tas_dict,
                                   columns=['datetime', 'data'])
 
     epw_daily_averages = get_epw_summary_values(epw_tas_df,
-                                                '%Y %m %d', 'mean',1)
+                                                '%Y %m %d', 'mean', 1)
     epw_tas_averages = get_epw_summary_values(epw_daily_averages,
-                                              fac, 'mean',rlen)['data']
+                                              fac, 'mean', rlen)['data']
     epw_daily_max = get_epw_summary_values(epw_tas_df,
-                                           '%Y %m %d', 'max',1)
+                                           '%Y %m %d', 'max', 1)
     epw_tas_max = get_epw_summary_values(epw_daily_max,
-                                         fac,'mean',rlen)['data']
+                                         fac, 'mean', rlen)['data']
     epw_daily_min = get_epw_summary_values(epw_tas_df,
-                                           '%Y %m %d', 'min',1)
+                                           '%Y %m %d', 'min', 1)
     epw_tas_min = get_epw_summary_values(epw_daily_min,
-                                         fac,'mean',rlen)['data']
+                                         fac, 'mean', rlen)['data']
 
     epw_factor = pandas.DatetimeIndex(epw_dates).dayofyear
     unique_factors = epw_factor.unique()
@@ -123,18 +121,18 @@ def morph_dewpoint_temperature(epw_dwpt: pandas.Series,
         fac = '%m %d'
 
     epw_dwpt_dict = {'datetime': epw_dates, 'data': epw_dwpt}
-    epw_dwpt_df = pandas.DataFrame(epw_dwpt_dict, 
-                                  columns=['datetime', 'data'])
+    epw_dwpt_df = pandas.DataFrame(epw_dwpt_dict,
+                                   columns=['datetime', 'data'])
 
     epw_daily_averages = get_epw_summary_values(epw_dwpt_df,
                                                 '%Y %m %d',
-                                                'mean',1)
+                                                'mean', 1)
     epw_averages = get_epw_summary_values(epw_daily_averages,
-                                          fac, 'mean',rlen)['data']
+                                          fac, 'mean', rlen)['data']
     epw_factor = pandas.DatetimeIndex(epw_dates).dayofyear
     unique_factors = epw_factor.unique()
     morphed_dwpt = np.zeros(len(epw_dwpt))
-    
+
     for uf in unique_factors:
         ix = epw_factor == uf
         shift = epw_averages[uf-1] + dewpoint_delta[uf-1]
@@ -359,9 +357,9 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
             epw_dates(Series): The hourly dates from the epw file.
             lon(float): The longitude to read data from climate files
             lat(float): The latitude to read data from climate files
-            alpha_tas_files(list): The list of gcm files for alpha 
+            alpha_tas_files(list): The list of gcm files for alpha
             morphing factors
-            delta_tas_files(list): The list of gcm files for delta 
+            delta_tas_files(list): The list of gcm files for delta
             morphing factors
             factor(str): Date factor with which to average.
             rlen(int): Rolling average window length.
@@ -388,7 +386,7 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
     morphed_epw_tas = morph_dry_bulb_temperature(epw_tas, epw_dates,
                                                  alpha_tas['mean'],
                                                  delta_tas['mean'],
-                                                 factor,rlen)
+                                                 factor, rlen)
     return(morphed_epw_tas)
 
 # -----------------------------------------------------------------
@@ -440,7 +438,7 @@ def generate_dewpoint_temperature(epw_dwpt: pandas.Series,
     morphed_dwpt = morph_dewpoint_temperature(epw_dwpt, epw_dates,
                                               alpha_dwpt['mean'],
                                               delta_dwpt['mean'],
-                                              factor,rlen)
+                                              factor, rlen)
     return(morphed_dwpt)
 
 # -----------------------------------------------------------------
@@ -521,11 +519,11 @@ def generate_stretched_series(epw_data: pandas.Series,
     alphas = get_ensemble_averages(cdfvariable=cdfvariable,
                                    lon=lon, lat=lat,
                                    gcm_files=alpha_files,
-                                   factor=factor,rlen=rlen)
+                                   factor=factor, rlen=rlen)
 
     morphed_epw = morphing_function(epw_data, epw_dates,
                                     alphas['mean'])
-                                    
+
     return(morphed_epw)
 
 # ----------------------------------------------------------------
@@ -566,22 +564,26 @@ def get_ensemble_averages(cdfvariable: str,
         mean_aggregate[:, i] = file_climate['mean'].flatten()
         std_aggregate[:, i] = file_climate['std'].flatten()
 
-    mean_ens = np.nanmean(mean_aggregate,axis=1)
-    std_ens = np.nanmean(std_aggregate,axis=1)
+    mean_ens = np.nanmean(mean_aggregate, axis=1)
+    std_ens = np.nanmean(std_aggregate, axis=1)
     if factor == 'roll':
         mean_ens_pd = pandas.Series(mean_ens)
-        mean_ens_roll = mean_ens_pd.rolling(rlen,min_periods=1,center=True).mean()
-        std_ens_pd =  pandas.Series(std_ens)
-        std_ens_roll = std_ens_pd.rolling(rlen,min_periods=1,center=True).mean()
-        ens_clim = {'mean': 
+        mean_ens_roll = mean_ens_pd.rolling(rlen,
+                                            min_periods=1,
+                                            center=True).mean()
+        std_ens_pd = pandas.Series(std_ens)
+        std_ens_roll = std_ens_pd.rolling(rlen,
+                                          min_periods=1,
+                                          center=True).mean()
+        ens_clim = {'mean':
                     np.asarray(mean_ens_roll),
-                    'std': 
+                    'std':
                     np.asarray(std_ens_roll)}
     else:
-        ens_clim = {'mean': 
+        ens_clim = {'mean':
                     mean_ens.flatten(),
-                    'std': 
-                    std_ens.flatten()}      
+                    'std':
+                    std_ens.flatten()}
     return(ens_clim)
 
 # ----------------------------------------------------------------
@@ -590,7 +592,7 @@ def get_ensemble_averages(cdfvariable: str,
 def cftime_to_datetime(data_dates, calendar):
     """ cftime_to_datetime(cftime, str)
 
-        Converts the netcdf time series into a 
+        Converts the netcdf time series into a
         datetime object
 
         Args:
@@ -663,13 +665,13 @@ def get_climate_data(nc: Dataset,
 
     if factor == 'monthly':
         fac = '%m'
-        reps = [31,28,31,30,31,30,31,31,30,31,30,31]
+        reps = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
         mon_mean = data_frame.groupby(
             data_frame['Time'].dt.strftime(fac)).mean().values
         mon_std = data_frame.groupby(
             data_frame['Time'].dt.strftime(fac)).std().values
-        time_mean = np.repeat(mon_mean.flatten(),reps,axis=0)
-        time_std = np.repeat(mon_std.flatten(),reps,axis=0)
+        time_mean = np.repeat(mon_mean.flatten(), reps, axis=0)
+        time_std = np.repeat(mon_std.flatten(), reps, axis=0)
     if (factor == 'daily') or (factor == 'roll'):
         fac = '%m %d'
         time_mean = data_frame.groupby(
@@ -677,7 +679,7 @@ def get_climate_data(nc: Dataset,
         time_std = data_frame.groupby(
             data_frame['Time'].dt.strftime(fac)).std().values
 
-    data_clim = {'mean': time_mean, 'std': time_std, 'time':dates_array}
+    data_clim = {'mean': time_mean, 'std': time_std, 'time': dates_array}
     return(data_clim)
 
 # ----------------------------------------------------------------
@@ -699,7 +701,7 @@ def check_epw_variable_name(epw_variable_name: str):
 def check_epw_inputs(location_name: str,
                      epw_read: str, epw_write: str,
                      lon: float, lat: float,
-                     epw_file_name=None) :
+                     epw_file_name=None):
 
     if lon is None or lat is None:
         print('Both longitude and latitude coordinates are required.')
@@ -714,23 +716,23 @@ def check_epw_inputs(location_name: str,
         raise SystemExit
 
     if epw_file_name is not None:
-        epw_file = os.path.basename(epw_file_name) #File only                                                                              
+        epw_file = os.path.basename(epw_file_name)
         epw_split = epw_file.split('_')
-        epw1 = epw_split[0] == 'CAN'
-        epw2 = epw_split[1] == 'BC'
-        epw4 = epw_split[3] == 'CWEC2016.epw'
+        epw0 = epw_split[0] == 'CAN'
+        epw1 = epw_split[1] == 'BC'
+        epw3 = epw_split[3] == 'CWEC2016.epw'
         if epw0 or epw1 or epw3:
             print('Supplied EPW file has incorrect file name format')
             print('Must be:')
             print('CAN_BC_LOCATION.ID_CWEC2016.epw')
             raise SystemExit
-        
+
 # ----------------------------------------------------------------
+
+
 def get_short_morph_variable(epw_variable: str):
     """ get_short_morph_variable(str)
-
         Returns the short name of the epw variable
-
         Args:
             epw_variable(str): The EPW variable name.
         Returns:
@@ -738,22 +740,22 @@ def get_short_morph_variable(epw_variable: str):
     """
 
     field_names = {
-        'dry_bulb_temperature' : 'TAS',
+        'dry_bulb_temperature': 'TAS',
         'dew_point_temperature': 'DWPT',
         'relative_humidity': 'RHS',
-        'atmospheric_station_pressure': 'PS', 
+        'atmospheric_station_pressure': 'PS',
         'extraterrestrial_horizontal_radiation': 'ETHR',
         'extraterrestrial_direct_normal_radition': 'ETDR',
-        'horizontal_infrared_radiation_intensity': 'IR', 
-        'global_horizontal_radiation': 'GHR' ,
+        'horizontal_infrared_radiation_intensity': 'IR',
+        'global_horizontal_radiation': 'GHR',
         'direct_normal_radiation': 'DNR',
         'diffuse_horizontal_radiation': 'DHR',
         'wind_direction': 'WDIR',
         'wind_speed': 'WSPD',
         'total_sky_cover': 'TSC',
         'opaque_sky_cover': 'OSC',
-        'snow_depth' : 'SND',
-        'liquid_precipitation_quantity':'PR'
+        'snow_depth': 'SND',
+        'liquid_precipitation_quantity': 'PR'
         }
     short_morph_variable = field_names.get(epw_variable,
                                            'Missing EPW Variable')
@@ -772,7 +774,7 @@ def add_morphing_info(headers: str, epw_variable: str):
             headers(str): EPW File headers
             epw_variable(str): The EPW variable name.
         Returns:
-            morph_headers(str): Headers with short morphing 
+            morph_headers(str): Headers with short morphing
             variable name added
     """
     morph_val = get_short_morph_variable(epw_variable)
@@ -795,11 +797,10 @@ def gen_future_weather_file(location_name: str,
                             epw_write: str,
                             epw_variable_name: str,
                             factor: str,
-                            rlen:int,
+                            rlen: int,
                             prism_files: list,
                             morphing_climate_files: list,
                             epw_file_name=None):
-
 
     """ gen_future_weather_file(str, float, float, str, str,
                                 int,list, list,str)
@@ -811,46 +812,44 @@ def gen_future_weather_file(location_name: str,
             location_name(str): The name of the EPW location.
             lon (float): EPW Location coordinate
             lat (float): EPW Location coordinate
-            epw_read(str): EPW Read Directory 
-            epw_write(str): EPW Write Directory              
+            epw_read(str): EPW Read Directory
+            epw_write(str): EPW Write Directory
             epw_variable_name(str): The path to the future epw file
                                     to create
             factor (str): Averaging type for the morphing parameters
             roll (int): Window for rolling average (1 if not using)
             prism_files(list): Names of the BC PRISM files
-            morphing_climate_files(list): Names of the precomputed files 
+            morphing_climate_files(list): Names of the precomputed files
                          to use for simulated values.
-            epw_file_name(str): EPW file to use instead of the 
+            epw_file_name(str): EPW file to use instead of the
                          nearest file if needed.
     """
     # Confirm the supplied inputs are correct
-    check_epw_inputs(location_name, epw_read, epw_write, 
-                     lon, lat,epw_file_name)
+    check_epw_inputs(location_name, epw_read, epw_write,
+                     lon, lat, epw_file_name)
 
     # Confirm Accurate variable name
     check_epw_variable_name(epw_variable_name)
 
-
-    ##Run the offset to obtain the epw_file
-    epw_filename = offset_current_weather_file(lon,lat,
+    # Run the offset to obtain the epw_file
+    epw_filename = offset_current_weather_file(lon, lat,
                                                location_name,
                                                prism_files,
                                                epw_read,
                                                epw_write,
-                                               epw_file_name)    
+                                               epw_file_name)
 
     epw_var_short = get_short_morph_variable(epw_variable_name)
-    prefix =  factor + str(rlen) 
-    epw_file_only = os.path.basename(epw_filename) #File only
-    epw_output_filename = epw_write + 'MORPHED_'+ epw_var_short \
-                          + '_' + prefix \
-                          + epw_file_only.replace('CAN_BC','')
+    epw_file_only = os.path.basename(epw_filename)
+    suffix = factor + str(rlen) + epw_file_only.replace('CAN_BC', '')
+    epw_new_filename = 'MORPHED_' + epw_var_short + '_' + suffix
+    epw_output_filename = epw_write + epw_new_filename
 
     # Get the data from epw file and the headers from the epw.
     with open(epw_filename) as epw_file:
         epw_data = epw_to_data_frame(epw_file)
         headers = get_epw_header(epw_file)
-    morph_headers = add_morphing_info(headers,epw_variable_name)
+    morph_headers = add_morphing_info(headers, epw_variable_name)
 
     # Morph columns of EPW dataframe based on selected options
     # ----------------------------------------------------------
@@ -872,12 +871,13 @@ def gen_future_weather_file(location_name: str,
             lon, lat,
             alpha_tas_files,
             delta_tas_files,
-            factor
+            factor, rlen
         )
         epw_data[epw_variable_name] = epw_dbt_morph
         write_epw_data(epw_data, morph_headers, epw_output_filename)
 
         print('Successfully morphed dry bulb temperature')
+        print('Wrote the morphed file here:' + epw_output_filename)
         return(epw_dbt_morph)
     # ----------------------------------------------------------
     # Dewpoint Temperature
@@ -897,10 +897,10 @@ def gen_future_weather_file(location_name: str,
             lon, lat,
             alpha_dwpt_files,
             delta_dwpt_files,
-            factor,rlen
+            factor, rlen
         )
         epw_data[epw_variable_name] = epw_dwpt_morph
-        
+
         write_epw_data(epw_data, morph_headers, epw_output_filename)
         print('Successfully morphed dewpoint temperature')
         return(epw_dwpt_morph)
@@ -920,7 +920,7 @@ def gen_future_weather_file(location_name: str,
             epw_data['datetime'],
             lon, lat,
             alpha_rsds_files,
-            factor,rlen
+            factor, rlen
         )
         epw_data['global_horizontal_radiation'] = epw_hr_morph[:, 0]
         epw_data['diffuse_horizontal_radiation'] = epw_hr_morph[:, 1]
@@ -958,7 +958,7 @@ def gen_future_weather_file(location_name: str,
         cdfvariable = cdf_vars.get(epw_variable_name, 'Missing EPW Variable')
 
         alpha_ix = np.array([i for i, gcm in enumerate(
-            morphing_climate_files) if ('alpha_'+ cdfvariable) in gcm])
+            morphing_climate_files) if ('alpha_' + cdfvariable) in gcm])
         alpha_files = np.array(
             morphing_climate_files)[alpha_ix]
 
@@ -970,7 +970,7 @@ def gen_future_weather_file(location_name: str,
                                                   cdfvariable,
                                                   alpha_files,
                                                   morphing_function,
-                                                  factor,rlen)
+                                                  factor, rlen)
         epw_data[epw_variable_name] = epw_var_morph
         write_epw_data(epw_data, morph_headers, epw_output_filename)
         print('Successfully morphed '+epw_variable_name)
@@ -1065,7 +1065,7 @@ def get_epw_summary_values(input_df: pandas.DataFrame,
         from the passed epw data, and returns dataframe of those values.
 
         Args:
-            input_df(pandas.Dataframe): The data and dates read from 
+            input_df(pandas.Dataframe): The data and dates read from
                     the epw that we will be averaging with.
             factor(str): The date factor with which to calculate summary
                          statistics
@@ -1076,22 +1076,25 @@ def get_epw_summary_values(input_df: pandas.DataFrame,
             A dataframe of summary data.
     """
     # ----------------------------------------------------
-    aggregate_values = input_df['data'].groupby(input_df['datetime'].dt.strftime(factor)).agg(operator)
+    aggregate_values = (input_df['data']
+                        .groupby(input_df['datetime'].dt.strftime(factor))
+                        .agg(operator))
     aggregate_data = aggregate_values.values.flatten()
 
     # Repeat to maintain 365 morphing values
     if factor == '%m':
-        reps = [31,28,31,30,31,30,31,31,30,31,30,31]
-        aggregate_data = np.repeat(aggregate_data,reps,axis=0)
+        reps = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
+        aggregate_data = np.repeat(aggregate_data, reps, axis=0)
         aggregate_dates = np.asarray(input_df['datetime'])
-    elif rlen !=1:
+    elif rlen != 1:
         agg_series = pandas.Series(aggregate_data)
-        agg_roll = agg_series.rolling(rlen,min_periods=1,center=True).mean()
+        agg_roll = agg_series.rolling(rlen, min_periods=1, center=True).mean()
         aggregate_data = np.asarray(agg_roll)
         aggregate_dates = np.asarray(input_df['datetime'])
     else:
-        string_dates = [s.replace(" ","-") for s in aggregate_values.index]
-        aggregate_dates = np.asarray([datetime.strptime(date, '%Y-%m-%d') for date in string_dates]) 
+        string_dates = [s.replace(" ", "-") for s in aggregate_values.index]
+        aggregate_dates = np.asarray([datetime.strptime(date, '%Y-%m-%d')
+                                      for date in string_dates])
 
     agg_dict = {'datetime': aggregate_dates, 'data': aggregate_data}
     return(pandas.DataFrame(agg_dict, columns=['datetime', 'data']))
@@ -1130,7 +1133,7 @@ def list_of_epw_coordinates(files):
 # ---------------------------------------------------------------------
 
 
-def find_closest_epw_file(coords,read_dir):
+def find_closest_epw_file(coords, read_dir):
     """ find_closest_epw_file(coords,read_dir)
         Loops through all epw files in the weather file directory,
         produces a list of coordinates for all available files and
@@ -1149,7 +1152,7 @@ def find_closest_epw_file(coords,read_dir):
 # ---------------------------------------------------------------------
 
 
-def prism_ncfile(varname:str,prism_files:list):
+def prism_ncfile(varname: str, prism_files: list):
     """ prism_ncfile(varname,prism_files)
         Returns an opened netcdf object for a PRISM climatology file.
         Args:
@@ -1160,7 +1163,6 @@ def prism_ncfile(varname:str,prism_files:list):
         if varname in f:
             ix = i
     fname = prism_files[ix]
-    
     dst = cdf.Dataset(fname, 'r')
     return(dst)
 
@@ -1208,9 +1210,9 @@ def prism_tas(nc, cells, prism_files):
             nc (Open PRISM netcdf object)
             cells(int,int): PRISM cell indices
     """
-    ncx = prism_ncfile('tmax',prism_files)
+    ncx = prism_ncfile('tmax', prism_files)
     tmax = prism_read(ncx, cells, 'tmax')
-    ncn = prism_ncfile('tmin',prism_files)
+    ncn = prism_ncfile('tmin', prism_files)
     tmin = prism_read(ncn, cells, 'tmin')
     tas = np.divide(tmax + tmin, 2.0)
     return(tas)
@@ -1243,10 +1245,10 @@ def offset_current_weather_file(lon: float,
                                 location_name: str,
                                 prism_files: list,
                                 read_dir: str,
-                                write_dir:str,
+                                write_dir: str,
                                 epw_filename=None):
-    """offset_current_weather_file(float, float, 
-                                   string,string, 
+    """offset_current_weather_file(float, float,
+                                   string,string,
                                    string,string,str)
 
         Generates an epw file based on a provided location by finding
@@ -1262,11 +1264,11 @@ def offset_current_weather_file(lon: float,
             location_name(string): The name of the coordinate location
                                    supplied.
             prism_files(list): BC PRISM Files.
-            read_dir(string): The directory location of the current 
+            read_dir(string): The directory location of the current
                               weather files.
-            write_dir(string): The directory location for the new 
+            write_dir(string): The directory location for the new
                               weather files.
-            epw_filename(string): Optional EPW file to use instead of 
+            epw_filename(string): Optional EPW file to use instead of
                               the default nearest to coordinates.
 
     """
@@ -1276,23 +1278,24 @@ def offset_current_weather_file(lon: float,
         epw_closest = epw_filename
     else:
         # Search through all weather files for the closest to the coords
-        epw_closest = find_closest_epw_file(coords,read_dir) # Full path
+        epw_closest = find_closest_epw_file(coords, read_dir)
     if not os.path.exists(write_dir):
         os.makedirs(write_dir)
-    epw_closest_file = os.path.basename(epw_closest) #File only
-    epw_output_name = write_dir + 'CAN_BC_' + location_name \
-                      + '_offset_from' + \
-                      epw_closest_file.replace('CAN_BC','')
+    epw_closest_file = os.path.basename(epw_closest)
+    prefix = 'CAN_BC_' + location_name + '_offset_from'
+    suffix = epw_closest_file.replace('CAN_BC', '')
+    epw_output_name = write_dir + prefix + suffix
+
     # Return the coordinates of the closest epw file
     epw_closest_coords = get_epw_coordinates(epw_closest)
     # Any PRISM climatology file to grab coordinates
-    nc = prism_ncfile('tmax',prism_files)
+    nc = prism_ncfile('tmax', prism_files)
 
     prism_cell = get_prism_indices(nc, coords)
-    prism_loc_tas = prism_tas(nc, prism_cell,prism_files)
+    prism_loc_tas = prism_tas(nc, prism_cell, prism_files)
 
     epw_cell = get_prism_indices(nc, epw_closest_coords)
-    prism_epw_tas = prism_tas(nc, epw_cell,prism_files)
+    prism_epw_tas = prism_tas(nc, epw_cell, prism_files)
 
     prism_diff = prism_loc_tas - prism_epw_tas
     diff_sum = sum(prism_diff)
@@ -1301,9 +1304,9 @@ def offset_current_weather_file(lon: float,
         epw_data = epw_to_data_frame(epw_file)
         headers = get_epw_header(epw_file)
 
-    if diff_sum==0:
+    if diff_sum == 0:
         print("No offset required")
-        write_epw_data(epw_data,headers,epw_output_name)
+        write_epw_data(epw_data, headers, epw_output_name)
     else:
         # Get the data from epw file and the headers from the epw.
         epw_offset = adjust_epw_with_prism(epw_data, prism_diff)
