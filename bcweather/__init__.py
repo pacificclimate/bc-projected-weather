@@ -1,6 +1,6 @@
 from datetime import datetime
 import re
-
+import pdb
 import numpy as np
 from netCDF4 import Dataset
 import netCDF4 as cdf
@@ -384,8 +384,8 @@ def generate_dry_bulb_temperature(epw_tas: pandas.Series,
     )
 
     morphed_epw_tas = morph_dry_bulb_temperature(epw_tas, epw_dates,
-                                                 alpha_tas['mean'],
-                                                 delta_tas['mean'],
+                                                 alpha_tas,
+                                                 delta_tas,
                                                  factor, rlen)
     return(morphed_epw_tas)
 
@@ -436,8 +436,8 @@ def generate_dewpoint_temperature(epw_dwpt: pandas.Series,
         rlen=rlen
     )
     morphed_dwpt = morph_dewpoint_temperature(epw_dwpt, epw_dates,
-                                              alpha_dwpt['mean'],
-                                              delta_dwpt['mean'],
+                                              alpha_dwpt,
+                                              delta_dwpt,
                                               factor, rlen)
     return(morphed_dwpt)
 
@@ -480,7 +480,7 @@ def generate_horizontal_radiation(epw_ghr: pandas.Series,
     )
     morphed_horiz_rad = morph_horizontal_radiation(
         epw_ghr, epw_dhr, epw_dates,
-        alpha_rsds['mean'])
+        alpha_rsds)
     return(morphed_horiz_rad)
 
 # ----------------------------------------------------------------
@@ -522,7 +522,7 @@ def generate_stretched_series(epw_data: pandas.Series,
                                    factor=factor, rlen=rlen)
 
     morphed_epw = morphing_function(epw_data, epw_dates,
-                                    alphas['mean'])
+                                    alphas)
 
     return(morphed_epw)
 
@@ -556,34 +556,21 @@ def get_ensemble_averages(cdfvariable: str,
     tlen = 365
     # Assemble the morphing factors
     mean_aggregate = np.zeros((tlen, len(gcm_files)))
-    std_aggregate = np.zeros((tlen, len(gcm_files)))
     for i, gcm_file in enumerate(gcm_files):
         with Dataset(gcm_file) as f:
             file_climate = get_climate_data(
                 f, lat, lon, cdfvariable, factor)
         mean_aggregate[:, i] = file_climate['mean'].flatten()
-        std_aggregate[:, i] = file_climate['std'].flatten()
 
     mean_ens = np.nanmean(mean_aggregate, axis=1)
-    std_ens = np.nanmean(std_aggregate, axis=1)
     if factor == 'roll':
         mean_ens_pd = pandas.Series(mean_ens)
         mean_ens_roll = mean_ens_pd.rolling(rlen,
                                             min_periods=1,
                                             center=True).mean()
-        std_ens_pd = pandas.Series(std_ens)
-        std_ens_roll = std_ens_pd.rolling(rlen,
-                                          min_periods=1,
-                                          center=True).mean()
-        ens_clim = {'mean':
-                    np.asarray(mean_ens_roll),
-                    'std':
-                    np.asarray(std_ens_roll)}
+        ens_clim = np.asarray(mean_ens_roll)
     else:
-        ens_clim = {'mean':
-                    mean_ens.flatten(),
-                    'std':
-                    std_ens.flatten()}
+        ens_clim = mean_ens.flatten()                  
     return(ens_clim)
 
 # ----------------------------------------------------------------
@@ -668,18 +655,12 @@ def get_climate_data(nc: Dataset,
         reps = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]
         mon_mean = data_frame.groupby(
             data_frame['Time'].dt.strftime(fac)).mean().values
-        mon_std = data_frame.groupby(
-            data_frame['Time'].dt.strftime(fac)).std().values
         time_mean = np.repeat(mon_mean.flatten(), reps, axis=0)
-        time_std = np.repeat(mon_std.flatten(), reps, axis=0)
     if (factor == 'daily') or (factor == 'roll'):
         fac = '%m %d'
         time_mean = data_frame.groupby(
             data_frame['Time'].dt.strftime(fac)).mean().values
-        time_std = data_frame.groupby(
-            data_frame['Time'].dt.strftime(fac)).std().values
-
-    data_clim = {'mean': time_mean, 'std': time_std, 'time': dates_array}
+    data_clim = {'mean': time_mean, 'time': dates_array}
     return(data_clim)
 
 # ----------------------------------------------------------------
