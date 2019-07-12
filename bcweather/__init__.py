@@ -1,6 +1,6 @@
 from datetime import datetime
 import re
-import pdb
+
 import numpy as np
 from netCDF4 import Dataset
 import netCDF4 as cdf
@@ -570,7 +570,7 @@ def get_ensemble_averages(cdfvariable: str,
                                             center=True).mean()
         ens_clim = np.asarray(mean_ens_roll)
     else:
-        ens_clim = mean_ens.flatten()                  
+        ens_clim = mean_ens.flatten()
     return(ens_clim)
 
 # ----------------------------------------------------------------
