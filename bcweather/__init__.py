@@ -699,9 +699,10 @@ def check_epw_inputs(location_name: str,
     if epw_file_name is not None:
         epw_file = os.path.basename(epw_file_name)
         epw_split = epw_file.split('_')
-        epw0 = epw_split[0] == 'CAN'
-        epw1 = epw_split[1] == 'BC'
-        epw3 = epw_split[3] == 'CWEC2016.epw'
+        epw0 = epw_split[0] != 'CAN'
+        epw1 = epw_split[1] != 'BC'
+        epw3 = epw_split[3] != 'CWEC2016.epw'
+
         if epw0 or epw1 or epw3:
             print('Supplied EPW file has incorrect file name format')
             print('Must be:')
@@ -824,7 +825,7 @@ def gen_future_weather_file(location_name: str,
     epw_file_only = os.path.basename(epw_filename)
     suffix = factor + str(rlen) + epw_file_only.replace('CAN_BC', '')
     epw_new_filename = 'MORPHED_' + epw_var_short + '_' + suffix
-    epw_output_filename = epw_write + epw_new_filename
+    epw_output_filename = epw_write + '/' + epw_new_filename
 
     # Get the data from epw file and the headers from the epw.
     with open(epw_filename) as epw_file:
@@ -1256,7 +1257,7 @@ def offset_current_weather_file(lon: float,
 
     coords = (lon, lat)
     if epw_filename is not None:
-        epw_closest = epw_filename
+        epw_closest = read_dir + '/' + epw_filename
     else:
         # Search through all weather files for the closest to the coords
         epw_closest = find_closest_epw_file(coords, read_dir)
@@ -1265,7 +1266,7 @@ def offset_current_weather_file(lon: float,
     epw_closest_file = os.path.basename(epw_closest)
     prefix = 'CAN_BC_' + location_name + '_offset_from'
     suffix = epw_closest_file.replace('CAN_BC', '')
-    epw_output_name = write_dir + prefix + suffix
+    epw_output_name = write_dir + '/' + prefix + suffix
 
     # Return the coordinates of the closest epw file
     epw_closest_coords = get_epw_coordinates(epw_closest)
@@ -1292,5 +1293,4 @@ def offset_current_weather_file(lon: float,
         # Get the data from epw file and the headers from the epw.
         epw_offset = adjust_epw_with_prism(epw_data, prism_diff)
         write_epw_data(epw_offset, headers, epw_output_name)
-
     return(epw_output_name)
